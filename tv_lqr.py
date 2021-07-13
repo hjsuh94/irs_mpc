@@ -3,9 +3,11 @@ from pydrake.all import (
     MathematicalProgram, 
     OsqpSolver,
     SnoptSolver,
+    ClpSolver,
+    GurobiSolver,
     eq, le, ge)
 
-def TV_LQR(At, Bt, ct, Q, R, x0, xdt, xbound, ubound, solver="osqp"):
+def TV_LQR(At, Bt, ct, Q, Qd, R, x0, xdt, xbound, ubound, xinit=None, uinit=None, solver="osqp"):
     """
     Solve time-varying LQR problem as an instance of a quadratic program (QP).
     Uses Drake's OSQP solver by default. Can use other solvers that Drake
@@ -15,11 +17,14 @@ def TV_LQR(At, Bt, ct, Q, R, x0, xdt, xbound, ubound, solver="osqp"):
      - Bt   (np.array, dim: T x n x m) : time-varying actuation matrix.
      - ct   (np.array, dim: T x n x 1) : bias term for affine dynamics.
      - Q    (np.array, dim: n x n): Quadratic cost on state error x(t) - xd(t)
+     - Qd    (np.array, dim: n x n): Quadratic cost on final state error x(t) - xd(t)     
      - R    (np.array, dim: m x m): Quadratic cost on actuation.
      - x0   (np.array, dim: n): Initial state of the problem.
      - xdt  (np.array, dim: (T + 1) x n): Desired trajectory of the system.
      - xbound (np.array, dim: n): Bound on state variables.
      - ubound (np.array, dim: u): Bound on input variables.
+     - xinit (np.array, dim: (T + 1) x n): initial guess for state.
+     - uinit (np.array, dim: T x m): initial guess for input.
     """
 
     prog = MathematicalProgram()
@@ -32,6 +37,10 @@ def TV_LQR(At, Bt, ct, Q, R, x0, xdt, xbound, ubound, solver="osqp"):
     xt = prog.NewContinuousVariables(timesteps + 1, state_dim, "state")
     ut = prog.NewContinuousVariables(timesteps, input_dim, "input")
 
+    if xinit is not None:
+        prog.SetInitialGuess(xt, xinit)
+    if uinit is not None:
+        prog.SetInitialGuess(ut, uinit)
     # 2. Initial constraint.
     prog.AddConstraint(eq(xt[0,:], x0))
 
@@ -51,14 +60,22 @@ def TV_LQR(At, Bt, ct, Q, R, x0, xdt, xbound, ubound, solver="osqp"):
         prog.AddQuadraticCost(R, np.zeros(input_dim), ut[t,:])
 
     # Add final constraint.
-    prog.AddQuadraticErrorCost(Q, xdt[timesteps,:], xt[timesteps,:])
+    prog.AddQuadraticErrorCost(Qd, xdt[timesteps,:], xt[timesteps,:])
     prog.AddBoundingBoxConstraint(xbound[0], xbound[1], xt[timesteps,:])
 
     # 4. Solve the program.
     if (solver == "osqp"):
         solver = OsqpSolver()
-    else:
+    elif (solver == "snopt"):
         solver = SnoptSolver()
+    elif (solver == "clp"):
+        solver = ClpSolver()
+    elif (solver == "scs"):
+        solver = ScsSolver()
+    elif (solver == "gurobi"):
+        solver = GurobiSolver()
+    else:
+        raise ValueError("Do not recognize solver.")
 
     result = solver.Solve(prog)
 

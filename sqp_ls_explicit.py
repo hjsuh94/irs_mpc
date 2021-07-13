@@ -83,7 +83,7 @@ class SQP_LS_Explicit():
         """
         Genearte random samples according to iteration count.
         """
-        dxdu = np.random.normal(0.0, (self.xu_initial_var / self.iter),
+        dxdu = np.random.normal(0.0, (self.xu_initial_var / (self.iter ** 0.5)),
             size=(self.num_samples, self.dim_x + self.dim_u))
         return dxdu
 
@@ -121,6 +121,7 @@ class SQP_LS_Explicit():
             """
             fdt = self.dynamics_batch(x_trj[t] + dx, u_trj[t] + du)
             ft = self.dynamics(x_trj[t], u_trj[t])
+
             deltaf = fdt - ft
 
             Ahat, Bhat = self.compute_least_squares(dxdu, deltaf)
@@ -143,15 +144,18 @@ class SQP_LS_Explicit():
         x_trj_new[0,:] = x_trj[0,:]
         u_trj_new = np.zeros(u_trj.shape)
 
+        x_star = None
+        u_star = None
         for t in range(self.timesteps):
             x_star, u_star = TV_LQR(
                 At[t:self.timesteps],
                 Bt[t:self.timesteps],
                 ct[t:self.timesteps],
-                self.Q, self.R,
+                self.Q, self.Q, self.R,
                 x_trj_new[t,:],
                 self.xdt[t:self.timesteps+1],
-                self.xbound, self.ubound)
+                self.xbound, self.ubound,
+                xinit = x_star, uinit = u_star)
             u_trj_new[t,:] = u_star[0]
             x_trj_new[t+1,:] = self.dynamics(x_trj_new[t,:], u_trj_new[t,:])
 
