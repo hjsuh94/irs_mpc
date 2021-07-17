@@ -2,17 +2,18 @@ import numpy as np
 import time
 
 from pendulum_dynamics import PendulumDynamicsExplicit
-from sqp_ls_explicit import SQP_LS_Explicit
+from sqp_ls_explicit import SqpLsExplicit
 
 import matplotlib.pyplot as plt 
 from matplotlib import cm
 
-# 1. Load dynamics.
+#%% 1. Load dynamics.
 pendulum = PendulumDynamicsExplicit(0.05)
 dynamics = pendulum.dynamics_np
 dynamics_batch = pendulum.dynamics_batch_np
 
-# 2. Set up desried trajectory and cost parameters.
+
+#%% 2. Set up desried trajectory and cost parameters.
 timesteps = 200
 Q = np.diag([5, 5])
 R = np.diag([1])
@@ -36,7 +37,7 @@ num_samples = 1000
 
 
 # 4. Solve.
-sqp_exact = SQP_LS_Explicit(
+sqp_exact = SqpLsExplicit(
     dynamics,
     dynamics_batch,
     x_initial_var,

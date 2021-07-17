@@ -2,7 +2,7 @@ import numpy as np
 import time
 
 from car_dynamics import CarDynamicsExplicit
-from sqp_ls_explicit import SQP_LS_Explicit
+from sqp_ls_explicit import SqpLsExplicit
 
 import matplotlib.pyplot as plt 
 from matplotlib import cm
@@ -37,7 +37,7 @@ u_initial_var = np.array([2.0, 1.0])
 num_samples = 10000
 
 # 4. Solve.
-sqp_exact = SQP_LS_Explicit(
+sqp_exact = SqpLsExplicit(
     dynamics,
     dynamics_batch,
     x_initial_var,

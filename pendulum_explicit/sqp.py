@@ -1,39 +1,39 @@
-)import numpy as np
 import time
 
-from pendulum_dynamics import PendulumDynamicsExplicit
-from sqp_exact_explicit import SQP_Exact_Explicit
-
-import matplotlib.pyplot as plt 
+import matplotlib.pyplot as plt
+import numpy as np
 from matplotlib import cm
+from pendulum_dynamics import PendulumDynamicsExplicit
+from sqp_exact_explicit import SqpExactExplicit
 
-# 1. Load dynamics.
+# %% 1. Load dynamics.
 pendulum = PendulumDynamicsExplicit(0.05)
 dynamics = pendulum.dynamics_np
 jacobian_x = pendulum.jacobian_x
 jacobian_u = pendulum.jacobian_u
 
-# 2. Set up desried trajectory and cost parameters.
+
+# %% 2. Set up desried trajectory and cost parameters.
 timesteps = 200
 Q = np.diag([5, 5])
 R = np.diag([1])
 x0 = np.array([0, 0])
 xd = np.array([np.pi, 0])
-xdt = np.tile(xd, (timesteps+1,1))
+xdt = np.tile(xd, (timesteps + 1, 1))
 xbound = [
     -np.array([1e4, 1e4]),
-     np.array([1e4, 1e4])
+    np.array([1e4, 1e4])
 ]
 ubound = np.array([
     -np.array([1e4]),
-     np.array([1e4])
+    np.array([1e4])
 ])
 
-# 3. Set up initial guess.
-u_trj = np.tile(np.array([0.1]), (timesteps,1))
+#%% 3. Set up initial guess.
+u_trj = np.tile(np.array([0.1]), (timesteps, 1))
 
 # 4. Solve.
-sqp_exact = SQP_Exact_Explicit(
+sqp_exact = SqpExactExplicit(
     dynamics,
     jacobian_x,
     jacobian_u,
@@ -52,11 +52,12 @@ num_iters = len(sqp_exact.x_trj_lst)
 print(num_iters)
 for i in range(num_iters):
     x_trj = sqp_exact.x_trj_lst[i]
-    jm = colormap(i/ num_iters)
-    plt.plot(x_trj[:,0], x_trj[:,1], color=(jm[0], jm[1], jm[2], i / num_iters))
+    jm = colormap(i / num_iters)
+    plt.plot(x_trj[:, 0], x_trj[:, 1],
+             color=(jm[0], jm[1], jm[2], i / num_iters))
 
-np.save("pendulum_explicit/results/x_trj.npy", np.array(sqp_exact.x_trj_lst))
-np.save("pendulum_explicit/results/u_trj.npy", np.array(sqp_exact.u_trj_lst))
+# np.save("pendulum_explicit/results/x_trj.npy", np.array(sqp_exact.x_trj_lst))
+# np.save("pendulum_explicit/results/u_trj.npy", np.array(sqp_exact.u_trj_lst))
 
 plt.xlabel("theta")
 plt.ylabel("theta_dot")

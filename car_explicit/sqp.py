@@ -2,7 +2,7 @@ import numpy as np
 import time
 
 from car_dynamics import CarDynamicsExplicit
-from sqp_exact_explicit import SQP_Exact_Explicit
+from sqp_exact_explicit import SqpExactExplicit
 
 import matplotlib.pyplot as plt 
 from matplotlib import cm
@@ -33,7 +33,7 @@ ubound = np.array([
 u_trj = np.tile(np.array([0.1, 0.0]), (timesteps,1))
 
 # 4. Solve.
-sqp_exact = SQP_Exact_Explicit(
+sqp_exact = SqpExactExplicit(
     dynamics,
     jacobian_x,
     jacobian_u,

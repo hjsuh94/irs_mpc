@@ -9,8 +9,8 @@ import time
 import matplotlib.pyplot as plt
 from matplotlib import cm
 
-from sqp_exact_explicit import SQP_Exact_Explicit
-from sqp_ls_explicit import SQP_LS_Explicit
+from sqp_exact_explicit import SqpExactExplicit
+from sqp_ls_explicit import SqpLsExplicit
 
 """1. Define some random ReLU NLP."""
 class DynamicsNLP(nn.Module):
@@ -113,7 +113,7 @@ num_samples = 10000
 
 # 4. Solve.
 try:
-    sqp_exact = SQP_Exact_Explicit(
+    sqp_exact = SqpExactExplicit(
         dynamics_nn,
         jacobian_x_nn,
         jacobian_u_nn,

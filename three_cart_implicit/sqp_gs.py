@@ -2,7 +2,7 @@ import numpy as np
 import time
 
 from three_cart_dynamics import ThreeCartDynamicsImplicit
-from sqp_ls_implicit import SQP_LS_Implicit
+from sqp_ls_implicit import SqpLsImplicit
 
 import matplotlib.pyplot as plt 
 from matplotlib import cm
@@ -37,7 +37,7 @@ u_initial_var = np.array([4.0, 4.0])
 num_samples = 10000
 
 # 4. Solve.
-sqp_exact = SQP_LS_Implicit(
+sqp_exact = SqpLsImplicit(
     dynamics,
     dynamics_batch,
     projection,

@@ -1,10 +1,12 @@
 import numpy as np
 
-from tv_lqr import TV_LQR
+from tv_lqr import solve_tvlqr, get_solver
 
-class SQP_LS_Explicit():
-    def __init__(self, dynamics, dynamics_batch, x_initial_var, u_initial_var, num_samples, 
-        Q, R, x0, xdt, u_trj, xbound, ubound):
+
+class SqpLsExplicit:
+    def __init__(self, dynamics, dynamics_batch, x_initial_var, u_initial_var,
+                 num_samples,
+                 Q, R, x0, xdt, u_trj, xbound, ubound):
         """
         dynamics: function representing state-space model of the system.
                   should have the signature dynamics(x, u)
@@ -29,14 +31,14 @@ class SQP_LS_Explicit():
         self.num_samples = num_samples
 
         self.x0 = x0
-        self.u_trj = u_trj # T x m
+        self.u_trj = u_trj  # T x m
         self.Q = Q
         self.R = R
-        self.xdt = xdt        
+        self.xdt = xdt
         self.xbound = xbound
         self.ubound = ubound
 
-        self.timesteps = self.u_trj.shape[0] # Recover T.
+        self.timesteps = self.u_trj.shape[0]  # Recover T.
         self.dim_x = self.x0.shape[0]
         self.dim_u = self.u_trj.shape[1]
         self.x_trj = self.rollout(self.x0, u_trj)
@@ -49,6 +51,9 @@ class SQP_LS_Explicit():
 
         self.iter = 1
 
+        # solver
+        self.solver = get_solver('gurobi')
+
     def rollout(self, x0, u_trj):
         """
         Given the initial state and an input trajectory, get an open-loop
@@ -58,9 +63,9 @@ class SQP_LS_Explicit():
             x0 (np.arraay)
         """
         x_trj = np.zeros((self.timesteps + 1, self.dim_x))
-        x_trj[0,:] = x0
+        x_trj[0, :] = x0
         for t in range(self.timesteps):
-            x_trj[t+1,:] = self.dynamics(x_trj[t,:], u_trj[t,:])
+            x_trj[t + 1, :] = self.dynamics(x_trj[t, :], u_trj[t, :])
         return x_trj
 
     def evaluate_cost(self, x_trj, u_trj):
@@ -72,19 +77,20 @@ class SQP_LS_Explicit():
         """
         cost = 0.0
         for t in range(self.timesteps):
-            et = x_trj[t,:] - self.xdt[t,:]
+            et = x_trj[t, :] - self.xdt[t, :]
             cost += et.dot(self.Q).dot(et)
-            cost += (u_trj[t,:]).dot(self.R).dot(u_trj[t,:])
-        et = x_trj[self.timesteps,:] - self.xdt[self.timesteps,:]
+            cost += (u_trj[t, :]).dot(self.R).dot(u_trj[t, :])
+        et = x_trj[self.timesteps, :] - self.xdt[self.timesteps, :]
         cost += et.dot(self.Q).dot(et)
-        return cost        
+        return cost
 
     def generate_random_samples(self):
         """
         Genearte random samples according to iteration count.
         """
         dxdu = np.random.normal(0.0, (self.xu_initial_var / (self.iter ** 0.5)),
-            size=(self.num_samples, self.dim_x + self.dim_u))
+                                size=(
+                                    self.num_samples, self.dim_x + self.dim_u))
         return dxdu
 
     def compute_least_squares(self, dxdu, deltaf):
@@ -94,11 +100,10 @@ class SQP_LS_Explicit():
         deltaf (np.array, N x (dim x))
         """
         ABhat = np.linalg.lstsq(dxdu, deltaf)[0].transpose()
-        Ahat = ABhat[:,0:self.dim_x]
-        Bhat = ABhat[:,self.dim_x:self.dim_x + self.dim_u]
+        Ahat = ABhat[:, 0:self.dim_x]
+        Bhat = ABhat[:, self.dim_x:self.dim_x + self.dim_u]
 
         return Ahat, Bhat
-    
 
     def get_TV_matrices(self, x_trj, u_trj):
         """
@@ -112,9 +117,9 @@ class SQP_LS_Explicit():
         ct = np.zeros((self.timesteps, self.dim_x))
 
         dxdu = self.generate_random_samples()
-        dx = dxdu[:,0:self.dim_x]
-        du = dxdu[:,self.dim_x:self.dim_x+self.dim_u]
-        
+        dx = dxdu[:, 0:self.dim_x]
+        du = dxdu[:, self.dim_x:self.dim_x + self.dim_u]
+
         for t in range(self.timesteps):
             """
             Get least squares estimates here.
@@ -141,23 +146,25 @@ class SQP_LS_Explicit():
         """
         At, Bt, ct = self.get_TV_matrices(x_trj, u_trj)
         x_trj_new = np.zeros(x_trj.shape)
-        x_trj_new[0,:] = x_trj[0,:]
+        x_trj_new[0, :] = x_trj[0, :]
         u_trj_new = np.zeros(u_trj.shape)
 
         x_star = None
         u_star = None
         for t in range(self.timesteps):
-            x_star, u_star = TV_LQR(
+            x_star, u_star = solve_tvlqr(
                 At[t:self.timesteps],
                 Bt[t:self.timesteps],
-                ct[t:self.timesteps],
-                self.Q, self.Q, self.R,
-                x_trj_new[t,:],
-                self.xdt[t:self.timesteps+1],
+                ct[t:self.timesteps], self.Q, self.Q,
+                self.R, x_trj_new[t, :],
+                self.xdt[t:self.timesteps + 1],
                 self.xbound, self.ubound,
-                xinit = x_star, uinit = u_star)
-            u_trj_new[t,:] = u_star[0]
-            x_trj_new[t+1,:] = self.dynamics(x_trj_new[t,:], u_trj_new[t,:])
+                solver=self.solver,
+                xinit=x_star,
+                uinit=u_star)
+            u_trj_new[t, :] = u_star[0]
+            x_trj_new[t + 1, :] = self.dynamics(x_trj_new[t, :],
+                                                u_trj_new[t, :])
 
         return x_trj_new, u_trj_new
 
@@ -165,7 +172,7 @@ class SQP_LS_Explicit():
         """
         Iterate local descent until convergence.
         """
-        while(True):
+        while True:
             x_trj_new, u_trj_new = self.local_descent(self.x_trj, self.u_trj)
             cost_new = self.evaluate_cost(x_trj_new, u_trj_new)
 
@@ -182,7 +189,7 @@ class SQP_LS_Explicit():
             """
 
             # Go over to next iteration.
-            self.cost = cost_new            
+            self.cost = cost_new
             self.x_trj = x_trj_new
             self.u_trj = u_trj_new
             self.iter += 1

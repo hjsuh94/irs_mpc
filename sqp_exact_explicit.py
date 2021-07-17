@@ -1,10 +1,12 @@
-import numpy as np
 import time
 
-from tv_lqr import TV_LQR
+import numpy as np
+from tv_lqr import solve_tvlqr, get_solver
 
-class SQP_Exact_Explicit():
-    def __init__(self, dynamics, jacobian_x, jacobian_u, Q, R, x0, xdt, u_trj, xbound, ubound):
+
+class SqpExactExplicit:
+    def __init__(self, dynamics, jacobian_x, jacobian_u, Q, R, x0, xdt, u_trj,
+                 xbound, ubound):
         """
         dynamics: function representing state-space model of the system.
                   should have the signature dynamics(x, u)
@@ -24,14 +26,14 @@ class SQP_Exact_Explicit():
         self.jacobian_u = jacobian_u
 
         self.x0 = x0
-        self.u_trj = u_trj # T x m
+        self.u_trj = u_trj  # T x m
         self.Q = Q
         self.R = R
-        self.xdt = xdt        
+        self.xdt = xdt
         self.xbound = xbound
         self.ubound = ubound
 
-        self.timesteps = self.u_trj.shape[0] # Recover T.
+        self.timesteps = self.u_trj.shape[0]  # Recover T.
         self.dim_x = self.x0.shape[0]
         self.dim_u = self.u_trj.shape[1]
         self.x_trj = self.rollout(self.x0, u_trj)
@@ -42,6 +44,9 @@ class SQP_Exact_Explicit():
         self.u_trj_lst = [self.u_trj]
         self.cost_lst = [self.cost]
 
+        # solver
+        self.solver = get_solver('gurobi')
+
     def rollout(self, x0, u_trj):
         """
         Given the initial state and an input trajectory, get an open-loop
@@ -51,9 +56,9 @@ class SQP_Exact_Explicit():
             x0 (np.arraay)
         """
         x_trj = np.zeros((self.timesteps + 1, self.dim_x))
-        x_trj[0,:] = x0
+        x_trj[0, :] = x0
         for t in range(self.timesteps):
-            x_trj[t+1,:] = self.dynamics(x_trj[t,:], u_trj[t,:])
+            x_trj[t + 1, :] = self.dynamics(x_trj[t, :], u_trj[t, :])
         return x_trj
 
     def evaluate_cost(self, x_trj, u_trj):
@@ -65,12 +70,12 @@ class SQP_Exact_Explicit():
         """
         cost = 0.0
         for t in range(self.timesteps):
-            et = x_trj[t,:] - self.xdt[t,:]
+            et = x_trj[t, :] - self.xdt[t, :]
             cost += et.dot(self.Q).dot(et)
-            cost += (u_trj[t,:]).dot(self.R).dot(u_trj[t,:])
-        et = x_trj[self.timesteps,:] - self.xdt[self.timesteps,:]
+            cost += (u_trj[t, :]).dot(self.R).dot(u_trj[t, :])
+        et = x_trj[self.timesteps, :] - self.xdt[self.timesteps, :]
         cost += et.dot(self.Q).dot(et)
-        return cost        
+        return cost
 
     def get_TV_matrices(self, x_trj, u_trj):
         """
@@ -98,7 +103,7 @@ class SQP_Exact_Explicit():
         """
         At, Bt, ct = self.get_TV_matrices(x_trj, u_trj)
         x_trj_new = np.zeros(x_trj.shape)
-        x_trj_new[0,:] = x_trj[0,:]
+        x_trj_new[0, :] = x_trj[0, :]
         u_trj_new = np.zeros(u_trj.shape)
 
         x_star = None
@@ -106,19 +111,19 @@ class SQP_Exact_Explicit():
 
         for t in range(self.timesteps):
             time_now = time.time()
-            x_star, u_star = TV_LQR(
+            x_star, u_star = solve_tvlqr(
                 At[t:self.timesteps],
                 Bt[t:self.timesteps],
-                ct[t:self.timesteps],
-                self.Q, self.Q, self.R,
-                x_trj_new[t,:],
-                self.xdt[t:self.timesteps+1],
+                ct[t:self.timesteps], self.Q, self.Q,
+                self.R, x_trj_new[t, :],
+                self.xdt[t:self.timesteps + 1],
                 self.xbound, self.ubound,
-                (None if x_star is None else x_star[1:]),
-                (None if u_star is None else u_star[1:]),
-                solver="gurobi")
-            u_trj_new[t,:] = u_star[0]
-            x_trj_new[t+1,:] = self.dynamics(x_trj_new[t,:], u_trj_new[t,:])
+                solver=self.solver,
+                xinit=(None if x_star is None else x_star[1:]),
+                uinit=(None if u_star is None else u_star[1:]))
+            u_trj_new[t, :] = u_star[0]
+            x_trj_new[t + 1, :] = self.dynamics(x_trj_new[t, :],
+                                                u_trj_new[t, :])
 
         return x_trj_new, u_trj_new
 
@@ -127,7 +132,7 @@ class SQP_Exact_Explicit():
         Iterate local descent until convergence.
         """
         iter = 0
-        while(True):
+        while True:
             x_trj_new, u_trj_new = self.local_descent(self.x_trj, self.u_trj)
             cost_new = self.evaluate_cost(x_trj_new, u_trj_new)
 
@@ -144,7 +149,7 @@ class SQP_Exact_Explicit():
             """
 
             # Go over to next iteration.
-            self.cost = cost_new            
+            self.cost = cost_new
             self.x_trj = x_trj_new
             self.u_trj = u_trj_new
             iter += 1
