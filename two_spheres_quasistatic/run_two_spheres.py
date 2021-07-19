@@ -22,9 +22,7 @@ quasistatic_sim_params = QuasistaticSimParameters(
     gravity=np.array([0, 0, 0.]),
     nd_per_contact=2,
     contact_detection_tolerance=np.inf,
-    is_quasi_dynamic=True,
-    mode='qp_cvx',
-    requires_grad=True)
+    is_quasi_dynamic=True)
 
 # robot
 Kp = np.array([500], dtype=float)
@@ -72,7 +70,7 @@ for i in range(T):
     t = h * i
     q_cmd_dict = {idx_a: qa_traj.value(t + h).ravel()}
     u = q_dynamics.get_u_from_q_cmd_dict(q_cmd_dict)
-    x = q_dynamics.dynamics(x, u)
+    x = q_dynamics.dynamics(x, u, mode='qp_cvx', requires_grad=True)
     _, _, Dq_nextDq, Dq_nextDqa_cmd = \
         q_dynamics.q_sim.get_dynamics_derivatives()
 
@@ -91,7 +89,7 @@ Bhat1, du = sqp_ls_q.calc_B_first_order(
     x_nominal=x_nominal,
     u_nominal=u_nominal,
     n_samples=100,
-    std=0.1)
+    std=0.05)
 print('Bhat1\n', Bhat1)
 
 
@@ -99,8 +97,8 @@ print('Bhat1\n', Bhat1)
 Bhat0, du = sqp_ls_q.calc_B_zero_order(
     x_nominal=x_nominal,
     u_nominal=u_nominal,
-    n_samples=10000,
-    std=0.1)
+    n_samples=1000,
+    std=0.05)
 
 print('Bhat0\n', Bhat0)
 

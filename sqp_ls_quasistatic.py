@@ -57,7 +57,9 @@ class SqpLsQuasistatic:
         Dq_nextDqa_cmd_list = np.zeros((n_samples, self.dim_x, self.dim_u))
 
         for i in range(n_samples):
-            self.q_dynamics.dynamics(x_nominal, u_nominal + du[i])
+            self.q_dynamics.dynamics(x_nominal, u_nominal + du[i],
+                                     mode='qp_cvx',
+                                     requires_grad=True)
             _, _, Dq_nextDq, Dq_nextDqa_cmd = \
                 self.q_dynamics.q_sim.get_dynamics_derivatives()
             Dq_nextDqa_cmd_list[i] = Dq_nextDqa_cmd

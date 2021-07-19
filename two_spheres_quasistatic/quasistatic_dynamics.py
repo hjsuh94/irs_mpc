@@ -53,7 +53,8 @@ class QuasistaticDynamics:
 
         return u
 
-    def dynamics(self, x: np.ndarray, u: np.ndarray):
+    def dynamics(self, x: np.ndarray, u: np.ndarray,
+                 mode: str = 'qp_mp', requires_grad: bool = False):
         """
         :param x: the position vector of self.q_sim.plant.
         :param u: commanded positions of models in
@@ -67,6 +68,8 @@ class QuasistaticDynamics:
         tau_ext_dict = {**tau_ext_a_dict, **tau_ext_u_dict}
 
         self.q_sim.update_configuration(q_dict)
-        q_next_dict = self.q_sim.step(q_a_cmd_dict, tau_ext_dict, self.h)
+        q_next_dict = self.q_sim.step(
+            q_a_cmd_dict, tau_ext_dict, self.h,
+            mode=mode, requires_grad=requires_grad)
 
         return self.get_x_from_q_dict(q_next_dict)
