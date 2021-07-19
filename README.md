@@ -1,2 +1,2 @@
-# sqp_rs
-SQP-RS: Randomized Smoothing for Trajectory Optimization
+# DiLQR_RS
+Direct iterative LQR with Ranomdized Smoothing

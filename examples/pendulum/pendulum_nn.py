@@ -1,4 +1,4 @@
-from pendulum_explicit.pendulum_dynamics import PendulumDynamicsExplicit
+from pendulum_dynamics import PendulumDynamics
 import numpy as np
 import pydrake.symbolic as ps
 import torch.nn as nn
@@ -9,8 +9,8 @@ import time
 import matplotlib.pyplot as plt
 from matplotlib import cm
 
-from sqp_exact_explicit import SQP_Exact_Explicit
-from sqp_ls_explicit import SQP_LS_Explicit
+from dilqr_exact import DiLQR_Exact
+from dilqr_rs_zero import DiLQR_RS_Zero
 
 """1. Define some random ReLU NLP."""
 class DynamicsNLP(nn.Module):
@@ -29,7 +29,7 @@ class DynamicsNLP(nn.Module):
         return self.dynamics_mlp(x)
 
 """2. Collect artificial data."""
-pendulum = PendulumDynamicsExplicit(0.05)
+pendulum = PendulumDynamics(0.05)
 dynamics = pendulum.dynamics_np
 dynamics_batch = pendulum.dynamics_batch_np
 
@@ -48,7 +48,7 @@ optimizer = optim.Adam(dynamics_net.parameters(), lr=0.001)
 scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=500)
 criterion = nn.MSELoss()
 
-num_iter = 1500
+num_iter = 600
 for iter in range(num_iter):
     optimizer.zero_grad()
     output = dynamics_net(torch.Tensor(xu))
@@ -58,7 +58,7 @@ for iter in range(num_iter):
     optimizer.step()
     scheduler.step()
 
-"""4. Wrap up functions to pass to SQP"""
+"""4. Wrap up functions to pass to DiLQR."""
 dynamics_net.eval()
 
 def dynamics_nn(x, u):
@@ -71,53 +71,44 @@ def dynamics_batch_nn(x, u):
     xnext = dynamics_net(xu)
     return xnext.detach().numpy()    
 
-def jacobian_x_nn(x, u):
+def jacobian_xu_nn(x, u):
     xu = torch.Tensor(np.concatenate((x,u))).unsqueeze(0)
     xu.requires_grad = True
     xnext = dynamics_net(xu)
     dJdxu0 = torch.autograd.grad(xnext[0,0], xu, retain_graph=True)[0].numpy()
     dJdxu1 = torch.autograd.grad(xnext[0,1], xu)[0].numpy()
     dJdxu = np.vstack((dJdxu0, dJdxu1))
-    return dJdxu[0:2, 0:2]
-
-def jacobian_u_nn(x, u):
-    xu = torch.Tensor(np.concatenate((x,u))).unsqueeze(0)
-    xu.requires_grad = True
-    xnext = dynamics_net(xu)
-    dJdxu0 = torch.autograd.grad(xnext[0,0], xu, retain_graph=True)[0].numpy()
-    dJdxu1 = torch.autograd.grad(xnext[0,1], xu)[0].numpy()
-    dJdxu = np.vstack((dJdxu0, dJdxu1))
-    return dJdxu[0:2, 2, None]
+    return dJdxu[0:2]
 
 """5. Test SQP."""
 timesteps = 200
-Q = np.diag([5, 5])
-R = 0.1 * np.diag([1])
+Q = np.diag([1, 1])
+Qd = np.diag([20., 20.])
+R = np.diag([1])
 x0 = np.array([0, 0])
 xd = np.array([np.pi, 0])
 xdt = np.tile(xd, (timesteps+1,1))
 xbound = [
-    -np.array([4.0 * np.pi, 20.0]),
-     np.array([4.0 * np.pi, 20.0])
+    -np.array([1e4, 1e4]),
+     np.array([1e4, 1e4])
 ]
 ubound = np.array([
-    -np.array([20.0]),
-     np.array([20.0])
+    -np.array([1e4]),
+     np.array([1e4])
 ])
 
 # 3. Set up initial guess.
 u_trj = np.tile(np.array([0.1]), (timesteps,1))
-x_initial_var = np.array([10.0, 40.0])
-u_initial_var = np.array([40.0])
+x_initial_var = np.array([1.0, 1.0])
+u_initial_var = np.array([1.0])
 num_samples = 10000
 
 # 4. Solve.
 try:
-    sqp_exact = SQP_Exact_Explicit(
+    sqp_exact = DiLQR_Exact(
         dynamics_nn,
-        jacobian_x_nn,
-        jacobian_u_nn,
-        Q, R, x0, xdt, u_trj,
+        jacobian_xu_nn,
+        Q, Qd, R, x0, xdt, u_trj,
         xbound, ubound)
 
     time_now = time.time()
@@ -135,26 +126,27 @@ try:
         jm = colormap(i/ num_iters)
         plt.plot(x_trj[:,0], x_trj[:,1], color=(jm[0], jm[1], jm[2], i / num_iters))        
 
-    np.save("pendulum_explicit/results/x_trj.npy", np.array(sqp_exact.x_trj_lst))
-    np.save("pendulum_explicit/results/u_trj.npy", np.array(sqp_exact.u_trj_lst))
-
     plt.xlabel("theta")
     plt.ylabel("theta_dot")
     plt.show()
 
 except ValueError:
-    print("SQP_EXACT Failed to find a solution.")
+    print("DiLQR_Exact Failed to find a solution.")
 
-
-"""
 try:
-    sqp_exact = SQP_LS_Explicit(
+
+    def sampling(xbar, ubar, iter):
+        dx = np.random.normal(0.0, (x_initial_var / (iter ** 0.5)),
+            size = (num_samples, pendulum.dim_x))
+        du = np.random.normal(0.0, (u_initial_var / (iter ** 0.5)),
+            size = (num_samples, pendulum.dim_u))        
+        return dx, du
+
+    sqp_exact = DiLQR_RS_Zero(
         dynamics_nn,
         dynamics_batch_nn,
-        x_initial_var,
-        u_initial_var,
-        num_samples,
-        Q, R, x0, xdt, u_trj,
+        sampling,
+        Q, Qd, R, x0, xdt, u_trj,
         xbound, ubound)
 
     time_now = time.time()
@@ -172,13 +164,9 @@ try:
         jm = colormap(i/ num_iters)
         plt.plot(x_trj[:,0], x_trj[:,1], color=(jm[0], jm[1], jm[2], i / num_iters))
 
-    np.save("pendulum_explicit/results/x_trj_01.npy", np.array(sqp_exact.x_trj_lst))
-    np.save("pendulum_explicit/results/u_trj_01.npy", np.array(sqp_exact.u_trj_lst))
-
     plt.xlabel("theta")
     plt.ylabel("theta_dot")
     plt.show()
 
 except ValueError:
-    print("SQP_LS Failed to find a solution.")
-"""
+    print("DiLQR_RS Failed to find a solution.")

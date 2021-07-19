@@ -3,7 +3,7 @@ import pydrake.symbolic as ps
 import torch
 import time
 
-class ThreeCartDynamicsImplicit():
+class ThreeCartDynamics():
     def __init__(self, dt):
         """
         x = [q1, q2, q3, v1, v2, v3]

@@ -5,24 +5,45 @@ from pydrake.all import (
     SnoptSolver,
     ClpSolver,
     GurobiSolver,
-    eq, le, ge)
+    eq)
 
-def TV_LQR(At, Bt, ct, Q, Qd, R, x0, xdt, xbound, ubound, xinit=None, uinit=None, solver="osqp"):
+def get_solver(solver_name : str):
+    if solver_name == "osqp":
+        return OsqpSolver()
+
+    if solver_name == "snopt":
+        return SnoptSolver()
+
+    if solver_name == "clp":
+        return  ClpSolver()
+
+    if solver_name == "scs":
+        return ScsSolver()
+
+    if solver_name == "gurobi":
+        return GurobiSolver()
+
+    raise ValueError("Do not recognize solver.")    
+
+def TV_DLQR(At, Bt, ct, Q, Qd, R, x0, xdt, xbound, ubound, solver,
+    xinit=None, uinit=None):
     """
     Solve time-varying LQR problem as an instance of a quadratic program (QP).
     Uses Drake's OSQP solver by default. Can use other solvers that Drake
-    supports, but OSQP will often result in fastest time.
+    supports, but OSQP will often result in fastest time (while being slightly inexact)
     args:
      - At   (np.array, dim: T x n x n) : time-varying dynamics matrix
      - Bt   (np.array, dim: T x n x m) : time-varying actuation matrix.
      - ct   (np.array, dim: T x n x 1) : bias term for affine dynamics.
      - Q    (np.array, dim: n x n): Quadratic cost on state error x(t) - xd(t)
-     - Qd    (np.array, dim: n x n): Quadratic cost on final state error x(t) - xd(t)     
+     - Qd    (np.array, dim: n x n): Quadratic cost on final state error x(T) - xd(T)     
      - R    (np.array, dim: m x m): Quadratic cost on actuation.
      - x0   (np.array, dim: n): Initial state of the problem.
      - xdt  (np.array, dim: (T + 1) x n): Desired trajectory of the system.
-     - xbound (np.array, dim: n): Bound on state variables.
-     - ubound (np.array, dim: u): Bound on input variables.
+     - xbound (np.array, dim: 2 x n): (lb, ub) Bound on state variables.
+     - ubound (np.array, dim: 2 x u): (lb, ub) Bound on input variables.
+     - solver (Drake's solver class): solver. Initialized outside the loop for 
+             better performance.
      - xinit (np.array, dim: (T + 1) x n): initial guess for state.
      - uinit (np.array, dim: T x m): initial guess for input.
     """
@@ -64,23 +85,11 @@ def TV_LQR(At, Bt, ct, Q, Qd, R, x0, xdt, xbound, ubound, xinit=None, uinit=None
     prog.AddBoundingBoxConstraint(xbound[0], xbound[1], xt[timesteps,:])
 
     # 4. Solve the program.
-    if (solver == "osqp"):
-        solver = OsqpSolver()
-    elif (solver == "snopt"):
-        solver = SnoptSolver()
-    elif (solver == "clp"):
-        solver = ClpSolver()
-    elif (solver == "scs"):
-        solver = ScsSolver()
-    elif (solver == "gurobi"):
-        solver = GurobiSolver()
-    else:
-        raise ValueError("Do not recognize solver.")
 
     result = solver.Solve(prog)
 
     if not result.is_success():
-        raise ValueError("TV_LQR failed. Optimization problem is not solved.")
+        raise ValueError("TV_DLQR failed. Optimization problem is not solved.")
 
     xt_star = result.GetSolution(xt)
     ut_star = result.GetSolution(ut)
