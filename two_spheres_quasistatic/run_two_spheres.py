@@ -37,7 +37,7 @@ object_sdf_dict = {object_name: object_sdf_path}
 nq_a = 1
 qa_knots = np.zeros((3, nq_a))
 qa_knots[0] = [0]
-qa_knots[1] = [0.8]
+qa_knots[1] = [0.2]
 qa_knots[2] = qa_knots[1]
 qa_traj = PiecewisePolynomial.FirstOrderHold([0, duration * 0.7, duration],
                                              qa_knots.T)
@@ -83,7 +83,7 @@ for i in range(T):
 #%%
 x_bounds = np.array([-np.ones(dim_x) * 10, np.ones(dim_x) * 10])
 u_bounds = np.array([-np.ones(dim_u) * 10, np.ones(dim_u) * 10])
-xd = np.array([1.8, 2.0])
+xd = np.array([0.2, 2.0])
 x_trj_d = np.tile(xd, (T + 1, 1))
 
 sqp_ls_q = SqpLsQuasistatic(

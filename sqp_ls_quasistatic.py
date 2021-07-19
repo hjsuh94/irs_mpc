@@ -103,6 +103,13 @@ class SqpLsQuasistatic:
 
         return np.mean(Ahat_list, axis=0), np.mean(Bhat_list, axis=0)
 
+    def calc_AB_exact(self, x_nominal: np.ndarray, u_nominal: np.ndarray):
+        self.q_dynamics.dynamics(x_nominal, u_nominal,
+                                 mode='qp_cvx',
+                                 requires_grad=True)
+        _, _, Ahat, Bhat = self.q_dynamics.q_sim.get_dynamics_derivatives()
+        return Ahat, Bhat
+
     def get_TV_matrices(self, x_trj, u_trj):
         """
         Get time varying linearized dynamics given a nominal trajectory.
@@ -123,6 +130,10 @@ class SqpLsQuasistatic:
                 u_nominal=u_trj[t],
                 n_samples=100,
                 std=std_u)
+
+            # Ahat, Bhat = self.calc_AB_exact(
+            #     x_nominal=x_trj[t],
+            #     u_nominal=u_trj[t])
 
             At[t] = Ahat
             Bt[t] = Bhat
