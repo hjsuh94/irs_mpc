@@ -73,3 +73,19 @@ class QuasistaticDynamics:
             mode=mode, requires_grad=requires_grad)
 
         return self.get_x_from_q_dict(q_next_dict)
+
+    def dynamics_batch(self, x, u):
+        """
+        Batch dynamics. Uses pytorch for
+        -args:
+            x (np.array, dim: B x n): batched state
+            u (np.array, dim: B x m): batched input
+        -returns:
+            x_next (np.array, dim: B x n): batched next state
+        """
+        n_batch = x.shape[0]
+        x_next = np.zeros((n_batch, self.dim_x))
+
+        for i in range(n_batch):
+            x_next[i] = self.dynamics(x[i], u[i])
+        return x_next

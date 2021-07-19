@@ -43,7 +43,6 @@ qa_traj = PiecewisePolynomial.FirstOrderHold([0, duration * 0.7, duration],
                                              qa_knots.T)
 qu0 = np.array([0.5])
 
-
 q_sim = QuasistaticSimulator(
     model_directive_path=model_directive_path,
     robot_stiffness_dict=robot_stiffness_dict,
@@ -58,12 +57,12 @@ q0_dict = {idx_u: qu0, idx_a: qa_knots[0]}
 
 #%%
 q_dynamics = QuasistaticDynamics(h=h, q_sim=q_sim)
-
-sqp_ls_q = SqpLsQuasistatic(q_dynamics=q_dynamics)
+dim_x = q_dynamics.dim_x
+dim_u = q_dynamics.dim_u
 
 #%% try running the dynamics.
 x0 = q_dynamics.get_x_from_q_dict(q0_dict)
-u_traj = np.zeros((T, nq_a))
+u_traj_0 = np.zeros((T, nq_a))
 
 x = np.copy(x0)
 for i in range(T):
@@ -78,14 +77,37 @@ for i in range(T):
     print('t={},'.format(t), 'x:', x, 'u:', u)
     print('Dq_nextDq\n', Dq_nextDq)
     print('Dq_nextDqa_cmd\n', Dq_nextDqa_cmd)
-    u_traj[i] = u
+    u_traj_0[i] = u
+
+
+#%%
+x_bounds = np.array([-np.ones(dim_x) * 10, np.ones(dim_x) * 10])
+u_bounds = np.array([-np.ones(dim_u) * 10, np.ones(dim_u) * 10])
+xd = np.array([1.8, 2.0])
+x_trj_d = np.tile(xd, (T + 1, 1))
+
+sqp_ls_q = SqpLsQuasistatic(
+    q_dynamics=q_dynamics,
+    std_u_initial=np.ones(dim_u) * 0.1,
+    T=T,
+    Q=np.diag([5, 5]),
+    R=np.diag([1]),
+    x_trj_d=x_trj_d,
+    x_bounds=x_bounds,
+    u_bounds=u_bounds,
+    x0=x0,
+    u_trj_0=u_traj_0)
+
+
+#%%
+sqp_ls_q.iterate(1e-6, 10)
 
 
 #%% first order estimate of B.
 x_nominal = np.array([0, 0.5])
 u_nominal = np.array([0.2])
 
-Bhat1, du = sqp_ls_q.calc_B_first_order(
+Ahat1, Bhat1 = sqp_ls_q.calc_AB_first_order(
     x_nominal=x_nominal,
     u_nominal=u_nominal,
     n_samples=100,

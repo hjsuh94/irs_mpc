@@ -27,7 +27,7 @@ def get_solver(solver_name : str):
     raise ValueError("Do not recognize solver.")
 
 
-def solve_tvlqr(At, Bt, ct, Q, Qd, R, x0, xdt, xbound, ubound, solver,
+def solve_tvlqr(At, Bt, ct, Q, Qd, R, x0, x_trj_d, xbound, ubound, solver,
                 xinit=None, uinit=None):
     """
     Solve time-varying LQR problem as an instance of a quadratic program (QP).
@@ -41,7 +41,7 @@ def solve_tvlqr(At, Bt, ct, Q, Qd, R, x0, xdt, xbound, ubound, solver,
      - Qd    (np.array, dim: n x n): Quadratic cost on final state error x(t) - xd(t)     
      - R    (np.array, dim: m x m): Quadratic cost on actuation.
      - x0   (np.array, dim: n): Initial state of the problem.
-     - xdt  (np.array, dim: (T + 1) x n): Desired trajectory of the system.
+     - x_trj_d  (np.array, dim: (T + 1) x n): Desired trajectory of the system.
      - xbound (np.array, dim: n): Bound on state variables.
      - ubound (np.array, dim: u): Bound on input variables.
      - xinit (np.array, dim: (T + 1) x n): initial guess for state.
@@ -77,11 +77,11 @@ def solve_tvlqr(At, Bt, ct, Q, Qd, R, x0, xdt, xbound, ubound, solver,
         prog.AddBoundingBoxConstraint(ubound[0], ubound[1], ut[t, :])
 
         # Add cost.
-        prog.AddQuadraticErrorCost(Q, xdt[t, :], xt[t, :])
+        prog.AddQuadraticErrorCost(Q, x_trj_d[t, :], xt[t, :])
         prog.AddQuadraticCost(R, np.zeros(input_dim), ut[t, :])
 
     # Add final constraint.
-    prog.AddQuadraticErrorCost(Qd, xdt[timesteps, :], xt[timesteps, :])
+    prog.AddQuadraticErrorCost(Qd, x_trj_d[timesteps, :], xt[timesteps, :])
     prog.AddBoundingBoxConstraint(xbound[0], xbound[1], xt[timesteps, :])
 
     # 4. Solve the program.
