@@ -1,26 +1,26 @@
 import numpy as np
-
+from two_spheres_quasistatic.quasistatic_dynamics import QuasistaticDynamics
 from tv_lqr import solve_tvlqr, get_solver
 
 
 class SqpLsQuasistatic:
-    def __init__(self, dynamics, dim_x: int, dim_u: int):
+    def __init__(self, q_dynamics: QuasistaticDynamics):
         """
 
         Arguments are similar to those of SqpLsImplicit.
         Only samples u to estimate B.
         A uses the first derivative of the dynamics at x.
         """
-        self.dynamics = dynamics
-        self.dim_x = dim_x
-        self.dim_u = dim_u
+        self.q_dynamics = q_dynamics
+        self.dim_x = q_dynamics.dim_x
+        self.dim_u = q_dynamics.dim_u
 
     def rollout(self, x0: np.ndarray, u_trj: np.ndarray):
         T = u_trj.shape[0]
         x_trj = np.zeros((T + 1, self.dim_x))
         x_trj[0, :] = x0
         for t in range(T):
-            x_trj[t + 1, :] = self.dynamics(x_trj[t, :], u_trj[t, :])
+            x_trj[t + 1, :] = self.q_dynamics.dynamics(x_trj[t, :], u_trj[t, :])
         return x_trj
 
     def eval_cost(self, x_trj, u_trj):
@@ -40,16 +40,29 @@ class SqpLsQuasistatic:
         :param std: standard deviation of the normal distribution.
         """
         du = np.random.normal(0, std, size=[n_samples, self.dim_u])
-        x_next_nominal = self.dynamics(x_nominal, u_nominal)
+        x_next_nominal = self.q_dynamics.dynamics(x_nominal, u_nominal)
         x_next = np.zeros((n_samples, self.dim_x))
 
         for i in range(n_samples):
-            x_next[i] = self.dynamics(x_nominal, u_nominal + du[i])
+            x_next[i] = self.q_dynamics.dynamics(x_nominal, u_nominal + du[i])
 
         dx_next = x_next - x_next_nominal
         Bhat = np.linalg.lstsq(du, dx_next, rcond=None)[0].transpose()
 
         return Bhat, du
+
+    def calc_B_first_order(self, x_nominal: np.ndarray, u_nominal: np.ndarray,
+                           n_samples: int, std: float):
+        du = np.random.normal(0, std, size=[n_samples, self.dim_u])
+        Dq_nextDqa_cmd_list = np.zeros((n_samples, self.dim_x, self.dim_u))
+
+        for i in range(n_samples):
+            self.q_dynamics.dynamics(x_nominal, u_nominal + du[i])
+            _, _, Dq_nextDq, Dq_nextDqa_cmd = \
+                self.q_dynamics.q_sim.get_dynamics_derivatives()
+            Dq_nextDqa_cmd_list[i] = Dq_nextDqa_cmd
+
+        return np.mean(Dq_nextDqa_cmd_list, axis=0), du
 
 
 

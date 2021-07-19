@@ -22,7 +22,9 @@ quasistatic_sim_params = QuasistaticSimParameters(
     gravity=np.array([0, 0, 0.]),
     nd_per_contact=2,
     contact_detection_tolerance=np.inf,
-    is_quasi_dynamic=True)
+    is_quasi_dynamic=True,
+    mode='qp_cvx',
+    requires_grad=True)
 
 # robot
 Kp = np.array([500], dtype=float)
@@ -59,31 +61,48 @@ q0_dict = {idx_u: qu0, idx_a: qa_knots[0]}
 #%%
 q_dynamics = QuasistaticDynamics(h=h, q_sim=q_sim)
 
-sqp_ls_q = SqpLsQuasistatic(
-    dynamics=q_dynamics.dynamics,
-    dim_x=q_dynamics.dim_x,
-    dim_u=q_dynamics.dim_u)
+sqp_ls_q = SqpLsQuasistatic(q_dynamics=q_dynamics)
 
 #%% try running the dynamics.
 x0 = q_dynamics.get_x_from_q_dict(q0_dict)
 u_traj = np.zeros((T, nq_a))
 
+x = np.copy(x0)
 for i in range(T):
     t = h * i
-    u = q_dynamics.get_u_from_q_cmd_dict({idx_a: qa_traj.value(t + h).ravel()})
+    q_cmd_dict = {idx_a: qa_traj.value(t + h).ravel()}
+    u = q_dynamics.get_u_from_q_cmd_dict(q_cmd_dict)
+    x = q_dynamics.dynamics(x, u)
+    _, _, Dq_nextDq, Dq_nextDqa_cmd = \
+        q_dynamics.q_sim.get_dynamics_derivatives()
+
+    print('--------------------------------')
+    print('t={},'.format(t), 'x:', x, 'u:', u)
+    print('Dq_nextDq\n', Dq_nextDq)
+    print('Dq_nextDqa_cmd\n', Dq_nextDqa_cmd)
     u_traj[i] = u
 
 
-#%%
+#%% first order estimate of B.
 x_nominal = np.array([0, 0.5])
 u_nominal = np.array([0.2])
-Bhat, du = sqp_ls_q.calc_B_zero_order(
+
+Bhat1, du = sqp_ls_q.calc_B_first_order(
+    x_nominal=x_nominal,
+    u_nominal=u_nominal,
+    n_samples=100,
+    std=0.1)
+print('Bhat1\n', Bhat1)
+
+
+#%% zero-th order estimate of B.
+Bhat0, du = sqp_ls_q.calc_B_zero_order(
     x_nominal=x_nominal,
     u_nominal=u_nominal,
     n_samples=10000,
     std=0.1)
 
-print(Bhat)
+print('Bhat0\n', Bhat0)
 
 plt.figure()
 plt.scatter(x_nominal, [0, 0])

@@ -12,7 +12,7 @@ class QuasistaticDynamics:
         self.q_sim = q_sim
 
         self.dim_x = q_sim.plant.num_positions()
-        self.dim_u = q_sim.num_actauted_dof()
+        self.dim_u = q_sim.num_actuated_dof()
 
         self.position_indices_dict = dict()
         for model in q_sim.models_all:
