@@ -37,7 +37,7 @@ object_sdf_dict = {object_name: object_sdf_path}
 nq_a = 1
 qa_knots = np.zeros((3, nq_a))
 qa_knots[0] = [0]
-qa_knots[1] = [0.2]
+qa_knots[1] = [0.5]
 qa_knots[2] = qa_knots[1]
 qa_traj = PiecewisePolynomial.FirstOrderHold([0, duration * 0.7, duration],
                                              qa_knots.T)
@@ -65,19 +65,25 @@ x0 = q_dynamics.get_x_from_q_dict(q0_dict)
 u_traj_0 = np.zeros((T, nq_a))
 
 x = np.copy(x0)
-for i in range(T):
-    t = h * i
-    q_cmd_dict = {idx_a: qa_traj.value(t + h).ravel()}
-    u = q_dynamics.get_u_from_q_cmd_dict(q_cmd_dict)
-    x = q_dynamics.dynamics(x, u, mode='qp_cvx', requires_grad=True)
-    _, _, Dq_nextDq, Dq_nextDqa_cmd = \
-        q_dynamics.q_sim.get_dynamics_derivatives()
-
-    print('--------------------------------')
-    print('t={},'.format(t), 'x:', x, 'u:', u)
-    print('Dq_nextDq\n', Dq_nextDq)
-    print('Dq_nextDqa_cmd\n', Dq_nextDqa_cmd)
-    u_traj_0[i] = u
+# for i in range(T):
+#     print('--------------------------------')
+#     t = h * i
+#     q_cmd_dict = {idx_a: qa_traj.value(t + h).ravel()}
+#     u = q_dynamics.get_u_from_q_cmd_dict(q_cmd_dict)
+#     x = q_dynamics.dynamics(x, u, mode='qp_mp', requires_grad=True)
+#     _, _, Dq_nextDq, Dq_nextDqa_cmd = \
+#         q_dynamics.q_sim.get_dynamics_derivatives()
+#
+#     q_dynamics.dynamics(x, u, mode='qp_cvx', requires_grad=True)
+#     _, _, Dq_nextDq_cvx, Dq_nextDqa_cmd_cvx = \
+#         q_dynamics.q_sim.get_dynamics_derivatives()
+#
+#     print('t={},'.format(t), 'x:', x, 'u:', u)
+#     print('Dq_nextDq\n', Dq_nextDq)
+#     print('cvx\n', Dq_nextDq_cvx)
+#     print('Dq_nextDqa_cmd\n', Dq_nextDqa_cmd)
+#     print('cvx\n', Dq_nextDqa_cmd_cvx)
+#     u_traj_0[i] = u
 
 
 #%%
@@ -119,7 +125,7 @@ print('Bhat1\n', Bhat1)
 Bhat0, du = sqp_ls_q.calc_B_zero_order(
     x_nominal=x_nominal,
     u_nominal=u_nominal,
-    n_samples=1000,
+    n_samples=10000,
     std=0.05)
 
 print('Bhat0\n', Bhat0)
