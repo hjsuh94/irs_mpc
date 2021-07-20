@@ -2,7 +2,7 @@ import numpy as np
 import time
 
 from bicycle_dynamics import BicycleDynamics
-from dilqr_rs_gradient import DiLQR_RS_Gradient
+from dilqr_rs.dilqr_rs_gradient import DiLQR_RS_Gradient
 
 import matplotlib.pyplot as plt 
 from matplotlib import cm

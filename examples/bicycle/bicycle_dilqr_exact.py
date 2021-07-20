@@ -2,7 +2,7 @@ import numpy as np
 import time
 
 from bicycle_dynamics import BicycleDynamics
-from dilqr_exact import DiLQR_Exact
+from dilqr_rs.dilqr_exact import DiLQR_Exact
 
 import matplotlib.pyplot as plt 
 from matplotlib import cm

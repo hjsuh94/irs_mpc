@@ -1,7 +1,7 @@
 import numpy as np
 import time
 
-from tv_dlqr import TV_DLQR, get_solver
+from dilqr_rs.tv_dlqr import TV_DLQR, get_solver
 
 class DiLQR():
     def __init__(self, dynamics, Q, Qd, R, x0, xdt, u_trj, 
@@ -90,28 +90,7 @@ class DiLQR():
             x_trj (np.array, shape (T + 1) x n)
             u_trj (np.array, shape T x m)
         """
-        At = np.zeros((self.timesteps, self.dim_x, self.dim_x))
-        Bt = np.zeros((self.timesteps, self.dim_x, self.dim_u))
-        ct = np.zeros((self.timesteps, self.dim_x))
-        
-        for t in range(self.timesteps):
-            """
-            Get least squares estimates here.
-            """
-            dx, du = self.sampling(x_trj[t], u_trj[t], self.iter)
-            fdt = self.dynamics_batch(x_trj[t] + dx, u_trj[t] + du)
-            ft = self.dynamics(x_trj[t], u_trj[t])
-
-            deltaf = fdt - ft
-            dxdu = np.hstack((dx, du))
-
-            Ahat, Bhat = self.compute_least_squares(dxdu, deltaf)
-
-            At[t] = Ahat
-            Bt[t] = Bhat
-            ct[t] = self.dynamics(x_trj[t], u_trj[t]) - At[t].dot(
-                x_trj[t]) - Bt[t].dot(u_trj[t])
-        return At, Bt, ct
+        raise NotImplementedError("This class is virtual.")
 
     def local_descent(self, x_trj, u_trj):
         """

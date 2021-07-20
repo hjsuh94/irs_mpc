@@ -1,6 +1,6 @@
 import numpy as np
 
-from dilqr import DiLQR
+from dilqr_rs.dilqr import DiLQR
 
 class DiLQR_RS_Gradient(DiLQR):
     def __init__(self, dynamics, jacobian_xu_batch, sampling,

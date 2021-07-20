@@ -1,6 +1,6 @@
 import numpy as np
 
-from dilqr import DiLQR
+from dilqr_rs.dilqr import DiLQR
 
 class DiLQR_RS_Zero(DiLQR):
     def __init__(self, dynamics, dynamics_batch, sampling,

@@ -1,7 +1,7 @@
 import numpy as np
 import time
 
-from dilqr import DiLQR
+from dilqr_rs.dilqr import DiLQR
 
 class DiLQR_Exact(DiLQR):
     def __init__(self, dynamics, jacobian_xu, 

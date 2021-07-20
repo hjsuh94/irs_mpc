@@ -46,6 +46,8 @@ def TV_DLQR(At, Bt, ct, Q, Qd, R, x0, xdt, xbound, ubound, solver,
              better performance.
      - xinit (np.array, dim: (T + 1) x n): initial guess for state.
      - uinit (np.array, dim: T x m): initial guess for input.
+    NOTE(terry-suh): This implementation needs to be "blazing fast.". It is 
+    performed O(iterations * timesteps^2).
     """
 
     prog = MathematicalProgram()
