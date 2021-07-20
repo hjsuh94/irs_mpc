@@ -9,9 +9,6 @@ from matplotlib import cm
 
 # 1. Load dynamics.
 carts = ThreeCartDynamics(0.05)
-dynamics = carts.dynamics_np
-dynamics_batch = carts.dynamics_batch_np
-projection = carts.projection
 
 # 2. Set up desried trajectory and cost parameters.
 timesteps = 100
@@ -41,18 +38,16 @@ def sampling(xbar, ubar, iter):
         size = (num_samples, carts.dim_x))
     du = np.random.normal(0.0, (u_initial_var / (iter ** 0.2)),
         size = (num_samples, carts.dim_u))   
-    return projection(xbar, dx, ubar, du)
+    return carts.projection(xbar, dx, ubar, du)
 
 # 4. Solve.
 sqp_exact = DiLQR_RS_Zero(
-    dynamics,
-    dynamics_batch,
-    sampling,
+    carts, sampling,
     Q, Qd, R, x0, xdt, u_trj,
     xbound, ubound)
 
 time_now = time.time()
-sqp_exact.iterate(1e-6, 20)
+sqp_exact.iterate(20)
 print("Final cost: " + str(sqp_exact.cost))
 print("Elapsed time: " + str(time.time() - time_now))
 
@@ -80,5 +75,3 @@ for i in range(num_iters):
     plt.plot(range(timesteps+1), u_trj[:,2], color=greens(i/num_iters))    
 
 plt.show()
-
-np.save("three_cart_implicit/results/x_trj.npy", np.array(sqp_exact.x_trj_lst))

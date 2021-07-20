@@ -9,8 +9,6 @@ from matplotlib import cm
 
 # 1. Load dynamics.
 pendulum = PendulumDynamics(0.05)
-dynamics = pendulum.dynamics_np
-jacobian_xu = pendulum.jacobian_xu
 
 # 2. Set up desried trajectory and cost parameters.
 timesteps = 200
@@ -34,13 +32,12 @@ u_trj = np.tile(np.array([0.1]), (timesteps,1))
 
 # 4. Solve.
 sqp_exact = DiLQR_Exact(
-    dynamics,
-    jacobian_xu,
+    pendulum,
     Q, Qd, R, x0, xdt, u_trj,
-    xbound, ubound, solver="osqp")
+    xbound, ubound, solver_name="osqp")
 
 time_now = time.time()
-sqp_exact.iterate(1e-6, 10)
+sqp_exact.iterate(10)
 print("Final cost: " + str(sqp_exact.cost))
 print("Elapsed time: " + str(time.time() - time_now))
 

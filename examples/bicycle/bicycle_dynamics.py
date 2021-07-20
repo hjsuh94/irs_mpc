@@ -3,13 +3,16 @@ import pydrake.symbolic as ps
 import torch
 import time
 
-class BicycleDynamics():
-    def __init__(self, dt):
+from dilqr_rs.dynamical_system import DynamicalSystem
+
+class BicycleDynamics(DynamicalSystem):
+    def __init__(self, h):
+        super(BicycleDynamics, self).__init__()
         """
         x = [x pos, y pos, heading, speed, steering_angle]
         u = [acceleration, steering_velocity]
         """
-        self.dt = dt
+        self.h = h
         self.dim_x = 5
         self.dim_u = 2
 
@@ -37,11 +40,11 @@ class BicycleDynamics():
             u[0],
             u[1]
         ])
-        x_new = x + self.dt * dxdt
+        x_new = x + self.h * dxdt
         return x_new
 
 
-    def dynamics_np(self, x, u):
+    def dynamics(self, x, u):
         """
         Numeric expression for dynamics.
         x (np.array, dim: n): state
@@ -57,10 +60,10 @@ class BicycleDynamics():
             u[0],
             u[1]
         ])
-        x_new = x + self.dt * dxdt
+        x_new = x + self.h * dxdt
         return x_new
 
-    def dynamics_batch_np(self, x, u):
+    def dynamics_batch(self, x, u):
         """
         Batch dynamics. Uses pytorch for 
         -args:
@@ -79,7 +82,7 @@ class BicycleDynamics():
             u[:,0],
             u[:,1]
         )).transpose()
-        x_new = x + self.dt * dxdt
+        x_new = x + self.h * dxdt
         return x_new
 
 
@@ -106,7 +109,7 @@ class BicycleDynamics():
             u[:,0],
             u[:,1]
         )).T
-        x_new = x + self.dt * dxdt
+        x_new = x + self.h * dxdt
         return x_new
 
     def jacobian_xu(self, x, u):
@@ -117,3 +120,13 @@ class BicycleDynamics():
         env.update({self.u_sym[i]: u[i] for i in range(self.dim_u)})
         f_x = ps.Evaluate(self.jacobian_xu_sym, env)
         return f_x 
+
+    def jacobian_xu_batch(self, x, u):
+        """
+        Recoever linearized dynamics dfd(xu) as a function of x, u
+        """ 
+        dxdu_batch = np.zeros((
+            x.shape[0], x.shape[1], x.shape[1] + u.shape[1]))
+        for i in range(x.shape[0]):
+            dxdu_batch[i] = self.jacobian_xu(x[i], u[i])
+        return dxdu_batch        

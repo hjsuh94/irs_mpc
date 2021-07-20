@@ -9,18 +9,6 @@ from matplotlib import cm
 
 # 1. Load dynamics.
 bicycle = BicycleDynamics(0.1)
-dynamics = bicycle.dynamics_np
-dynamics_batch = bicycle.dynamics_batch_np
-jacobian_xu = bicycle.jacobian_xu
-
-# Batch function for Jacobian handling.
-def jacobian_xu_batch(x_batch, u_batch):
-    dxdu_batch = np.zeros((
-        x_batch.shape[0], x_batch.shape[1],
-        x_batch.shape[1] + u_batch.shape[1]))
-    for i in range(x_batch.shape[0]):
-        dxdu_batch[i] = jacobian_xu(x_batch[i], u_batch[i])
-    return dxdu_batch
 
 # 2. Set up desried trajectory and cost parameters.
 timesteps = 100
@@ -55,13 +43,12 @@ def sampling(xbar, ubar, iter):
 
 # 4. Solve.
 sqp_exact = DiLQR_RS_Gradient(
-    dynamics,
-    jacobian_xu_batch, sampling,
+    bicycle, sampling,
     Q, Qd, R, x0, xdt, u_trj,
     xbound, ubound)
 
 time_now = time.time()
-sqp_exact.iterate(1e-6, 20)
+sqp_exact.iterate(20)
 print("Final cost: " + str(sqp_exact.cost))
 print("Elapsed time: " + str(time.time() - time_now))
 

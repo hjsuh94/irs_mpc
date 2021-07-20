@@ -3,13 +3,17 @@ import pydrake.symbolic as ps
 import torch
 import time
 
-class PendulumDynamics():
-    def __init__(self, dt):
+from dilqr_rs.dynamical_system import DynamicalSystem
+
+class PendulumDynamics(DynamicalSystem):
+    def __init__(self, h):
+        super(PendulumDynamics, self).__init__()
         """
         x = [x pos, y pos, heading, speed, steering_angle]
         u = [acceleration, steering_velocity]
         """
-        self.dt = dt
+
+        self.h = h
         self.dim_x = 2
         self.dim_u = 1
 
@@ -32,14 +36,14 @@ class PendulumDynamics():
         speed = x[1]
 
         # Do semi-implicit integration.
-        next_speed = speed + self.dt * (-ps.sin(angle) + u[0])
-        next_angle = angle + self.dt * next_speed
+        next_speed = speed + self.h * (-ps.sin(angle) + u[0])
+        next_angle = angle + self.h * next_speed
 
         x_new = np.array([next_angle, next_speed])
         return x_new
 
 
-    def dynamics_np(self, x, u):
+    def dynamics(self, x, u):
         """
         Numeric expression for dynamics.
         x (np.array, dim: n): state
@@ -49,13 +53,13 @@ class PendulumDynamics():
         speed = x[1]
 
         # Do semi-implicit integration.
-        next_speed = speed + self.dt * (-np.sin(angle) + u[0])
-        next_angle = angle + self.dt * next_speed
+        next_speed = speed + self.h * (-np.sin(angle) + u[0])
+        next_angle = angle + self.h * next_speed
 
         x_new = np.array([next_angle, next_speed])
         return x_new
 
-    def dynamics_batch_np(self, x, u):
+    def dynamics_batch(self, x, u):
         """
         Batch dynamics. Uses pytorch for 
         -args:
@@ -70,8 +74,8 @@ class PendulumDynamics():
         torque = u[:,0]
 
         # Do semi-implicit integration.
-        next_speed = speed + self.dt * (-np.sin(angle) + torque)
-        next_angle = angle + self.dt * next_speed
+        next_speed = speed + self.h * (-np.sin(angle) + torque)
+        next_angle = angle + self.h * next_speed
 
         x_new = np.vstack((next_angle, next_speed)).transpose()
         return x_new
@@ -100,7 +104,7 @@ class PendulumDynamics():
             u[:,0],
             u[:,1]
         )).T
-        x_new = x + self.dt * dxdt
+        x_new = x + self.h * dxdt
         return x_new
 
     def jacobian_xu(self, x, u):
@@ -111,3 +115,13 @@ class PendulumDynamics():
         env.update({self.u_sym[i]: u[i] for i in range(self.dim_u)})
         J_xu = ps.Evaluate(self.jacobian_xu_sym, env)
         return J_xu
+
+    def jacobian_xu_batch(self, x, u):
+        """
+        Recoever linearized dynamics dfd(xu) as a function of x, u
+        """ 
+        dxdu_batch = np.zeros((
+            x.shape[0], x.shape[1], x.shape[1] + u.shape[1]))
+        for i in range(x.shape[0]):
+            dxdu_batch[i] = self.jacobian_xu(x[i], u[i])
+        return dxdu_batch        

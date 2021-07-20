@@ -4,40 +4,39 @@ import time
 from dilqr_rs.tv_dlqr import TV_DLQR, get_solver
 
 class DiLQR():
-    def __init__(self, dynamics, Q, Qd, R, x0, xdt, u_trj, 
-        xbound, ubound, solver="osqp"):
+    def __init__(self, system, Q, Qd, R, x0, xd_trj, u_trj, 
+        xbound, ubound, solver_name="osqp"):
         """
         Base class for Direct iterative LQR.
 
-        dynamics: function representing state-space model of the system.
-                  should have the signature x_{t+1} = dynamics(x_t, u_t)
-                  where x_t: np.array of dim n, u_t: np.array of dim m.
+        system (DynamicalSystem class): dynamics class.
         Q (np.array, shape n x n): cost matrix for state.
         Qd (np.array, shape n x n): cost matrix for final state.
         R (np.array, shape m x m): cost matrix for input.
         x0 (np.array, shape n): initial point in state-space.
-        xdt (np.array, shape (T+1) x n): desired trajectory.
+        xd_trj (np.array, shape (T+1) x n): desired trajectory.
         u_trj (np.array, shape T x m): initial guess of the input trajectory.
         xbound (np.array, shape 2 x n): (lb, ub) bounds on state.
         xbound (np.array, shape 2 x m): (lb, ub) bounds on input.
         solver (str): solver name to use for direct LQR.
         """
 
-        self.dynamics = dynamics
+        self.system = system
+        self.check_valid_system(system)
 
         self.x0 = x0
         self.u_trj = u_trj # T x m
         self.Q = Q
         self.Qd = Qd
         self.R = R
-        self.xdt = xdt        
+        self.xd_trj = xd_trj
         self.xbound = xbound
         self.ubound = ubound
-        self.solver = get_solver(solver)
+        self.solver = get_solver(solver_name)
 
-        self.timesteps = self.u_trj.shape[0] # Recover T.
-        self.dim_x = self.x0.shape[0]
-        self.dim_u = self.u_trj.shape[1]
+        self.T = self.u_trj.shape[0] # horizon of the problem
+        self.dim_x = self.system.dim_x
+        self.dim_u = self.system.dim_u
         self.x_trj = self.rollout(self.x0, u_trj)
         self.cost = self.evaluate_cost(self.x_trj, self.u_trj)
 
@@ -50,6 +49,22 @@ class DiLQR():
 
         self.iter = 1
 
+    def check_valid_system(self, system):
+        """
+        Check if the system is valid. Otherwise, throw exception.
+        """
+        if (system.dim_x == 0):
+            raise RuntimeError(
+                "System has zero states. Did you forget to set dim_x?")
+        elif (system.dim_u == 0):
+            raise RuntimeError(
+                "System has zero inputs. Did you forget to set dim_u?")
+        try:
+            system.dynamics(np.zeros(system.dim_x), np.zeros(system.dim_u))
+        except:
+            raise RuntimeError(
+                "Could not evaluate dynamics. Have you implemented it?")
+
     def rollout(self, x0, u_trj):
         """
         Given the initial state and an input trajectory, get an open-loop
@@ -59,10 +74,10 @@ class DiLQR():
             x0 (np.array, shape n): initial state.
             u_traj (np.array, shape T x m): initial input guess.
         """
-        x_trj = np.zeros((self.timesteps + 1, self.dim_x))
+        x_trj = np.zeros((self.T + 1, self.dim_x))
         x_trj[0,:] = x0
-        for t in range(self.timesteps):
-            x_trj[t+1,:] = self.dynamics(x_trj[t,:], u_trj[t,:])
+        for t in range(self.T):
+            x_trj[t+1,:] = self.system.dynamics(x_trj[t,:], u_trj[t,:])
         return x_trj
 
     def evaluate_cost(self, x_trj, u_trj):
@@ -75,11 +90,11 @@ class DiLQR():
         dependency.
         """
         cost = 0.0
-        for t in range(self.timesteps):
-            et = x_trj[t,:] - self.xdt[t,:]
+        for t in range(self.T):
+            et = x_trj[t,:] - self.xd_trj[t,:]
             cost += et.dot(self.Q).dot(et)
             cost += (u_trj[t,:]).dot(self.R).dot(u_trj[t,:])
-        et = x_trj[self.timesteps,:] - self.xdt[self.timesteps,:]
+        et = x_trj[self.T,:] - self.xd_trj[self.T,:]
         cost += et.dot(self.Q).dot(et)
         return cost        
 
@@ -104,24 +119,29 @@ class DiLQR():
         x_trj_new[0,:] = x_trj[0,:]
         u_trj_new = np.zeros(u_trj.shape)
 
-        for t in range(self.timesteps):
+        for t in range(self.T):
             x_star, u_star = TV_DLQR(
-                At[t:self.timesteps],
-                Bt[t:self.timesteps],
-                ct[t:self.timesteps],
+                At[t:self.T],
+                Bt[t:self.T],
+                ct[t:self.T],
                 self.Q, self.Qd, self.R,
                 x_trj_new[t,:],
-                self.xdt[t:self.timesteps+1],
+                self.xd_trj[t:self.T+1],
                 self.xbound, self.ubound,
                 solver=self.solver)
             u_trj_new[t,:] = u_star[0]
-            x_trj_new[t+1,:] = self.dynamics(x_trj_new[t,:], u_trj_new[t,:])
+            x_trj_new[t+1,:] = self.system.dynamics(
+                x_trj_new[t,:], u_trj_new[t,:])
 
         return x_trj_new, u_trj_new
 
-    def iterate(self, convergence_gap, max_iterations):
+    def iterate(self, max_iterations):
         """
         Iterate local descent until convergence.
+        NOTE(terry-suh): originally, there is a convergence criteria.
+        However, given the "non-local" nature of some randomized smoothing
+        algorithms, setting such a criteria might cause it to terminate early.
+        Thus we only provide a max iterations input.
         """
         while(True):
             x_trj_new, u_trj_new = self.local_descent(self.x_trj, self.u_trj)
@@ -138,13 +158,6 @@ class DiLQR():
             if (self.iter > max_iterations):
                 break
 
-            #TODO(terry-suh): this should be here, but sometimes it makes it
-            # terminate too early.
-            """
-            if ((self.cost - cost_new) < convergence_gap):
-                break
-            """
-
             # Go over to next iteration.
             self.cost = cost_new            
             self.x_trj = x_trj_new
@@ -152,3 +165,4 @@ class DiLQR():
             self.iter += 1
 
         return self.x_trj, self.u_trj, self.cost
+

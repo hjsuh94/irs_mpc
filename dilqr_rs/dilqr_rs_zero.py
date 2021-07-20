@@ -3,19 +3,14 @@ import numpy as np
 from dilqr_rs.dilqr import DiLQR
 
 class DiLQR_RS_Zero(DiLQR):
-    def __init__(self, dynamics, dynamics_batch, sampling,
-        Q, Qd, R, x0, xdt, u_trj, xbound, ubound, solver="osqp"):
-        super(DiLQR_RS_Zero, self).__init__(dynamics, Q, Qd, R, x0, xdt, u_trj,
-            xbound, ubound, solver)
+    def __init__(self, system, sampling,
+        Q, Qd, R, x0, xdt, u_trj, xbound, ubound, solver_name="osqp"):
+        super(DiLQR_RS_Zero, self).__init__(system, Q, Qd, R, x0, xdt, u_trj,
+            xbound, ubound, solver_name)
         """
         Direct Iterative LQR using Randomized Smoothing.
         This is a zero-order variant that samples dynamics directly.
 
-        dynamics_batch: batch function for dynamics for fast sampling. If you don't have
-                  a parallelized implementation, then for-loop function over the dynamics
-                  will suffice. Signature is x_{t+1} = dynamics(x_t, u_t)
-                  where x_t: np.array of dim B x n, u_t: np.array of dim B x m.
-                  B is the batch size (set to num_samples).
         sampling: sampling function to use for the least squares estimate.
                   We accept this as a function so that users may input their choice
                   of sampling distribution and variance stepping schemes.
@@ -29,7 +24,6 @@ class DiLQR_RS_Zero(DiLQR):
         Refer to DiLQR for other arguments.
         """
 
-        self.dynamics_batch = dynamics_batch
         self.sampling = sampling
 
     def compute_least_squares(self, dxdu, deltaf):
@@ -50,14 +44,14 @@ class DiLQR_RS_Zero(DiLQR):
             x_trj (np.array, shape (T + 1) x n)
             u_trj (np.array, shape T x m)
         """
-        At = np.zeros((self.timesteps, self.dim_x, self.dim_x))
-        Bt = np.zeros((self.timesteps, self.dim_x, self.dim_u))
-        ct = np.zeros((self.timesteps, self.dim_x))
+        At = np.zeros((self.T, self.dim_x, self.dim_x))
+        Bt = np.zeros((self.T, self.dim_x, self.dim_u))
+        ct = np.zeros((self.T, self.dim_x))
         
-        for t in range(self.timesteps):
+        for t in range(self.T):
             dx, du = self.sampling(x_trj[t], u_trj[t], self.iter)
-            fdt = self.dynamics_batch(x_trj[t] + dx, u_trj[t] + du)
-            ft = self.dynamics(x_trj[t], u_trj[t])
+            fdt = self.system.dynamics_batch(x_trj[t] + dx, u_trj[t] + du)
+            ft = self.system.dynamics(x_trj[t], u_trj[t])
 
             deltaf = fdt - ft
             dxdu = np.hstack((dx, du))
@@ -66,6 +60,6 @@ class DiLQR_RS_Zero(DiLQR):
 
             At[t] = Ahat
             Bt[t] = Bhat
-            ct[t] = self.dynamics(x_trj[t], u_trj[t]) - At[t].dot(
+            ct[t] = self.system.dynamics(x_trj[t], u_trj[t]) - At[t].dot(
                 x_trj[t]) - Bt[t].dot(u_trj[t])
         return At, Bt, ct

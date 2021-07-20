@@ -9,9 +9,6 @@ from matplotlib import cm
 
 # 1. Load dynamics.
 bicycle = BicycleDynamics(0.1)
-dynamics = bicycle.dynamics_np
-dynamics_batch = bicycle.dynamics_batch_np
-jacobian_xu = bicycle.jacobian_xu
 
 # 2. Set up desried trajectory and cost parameters.
 timesteps = 100
@@ -46,13 +43,12 @@ def sampling(xbar, ubar, iter):
 
 # 4. Solve.
 sqp_exact = DiLQR_Exact(
-    dynamics,
-    jacobian_xu,
+    bicycle,
     Q, Qd, R, x0, xdt, u_trj,
     xbound, ubound)
 
 time_now = time.time()
-sqp_exact.iterate(1e-6, 20)
+sqp_exact.iterate(20)
 print("Final cost: " + str(sqp_exact.cost))
 print("Elapsed time: " + str(time.time() - time_now))
 
