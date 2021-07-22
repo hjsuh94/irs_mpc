@@ -28,7 +28,7 @@ def get_solver(solver_name : str):
 
 
 def solve_tvlqr(At, Bt, ct, Q, Qd, R, x0, x_trj_d, xbound, ubound, solver,
-                xinit=None, uinit=None):
+                xinit=None, uinit=None, **kwargs):
     """
     Solve time-varying LQR problem as an instance of a quadratic program (QP).
     Uses Drake's OSQP solver by default. Can use other solvers that Drake
@@ -66,23 +66,30 @@ def solve_tvlqr(At, Bt, ct, Q, Qd, R, x0, x_trj_d, xbound, ubound, solver,
     prog.AddConstraint(eq(xt[0, :], x0))
 
     # 3. Loop over to add dynamics constraints and costs.
+    indices_u_into_x = kwargs['indices_u_into_x']
+    Qu = np.diag(Q.diagonal()[indices_u_into_x])
     for t in range(timesteps):
         # Add affine dynamics constraint.
         prog.AddLinearEqualityConstraint(
             np.hstack((At[t], Bt[t], -np.eye(state_dim))), -ct[t],
-            np.hstack((xt[t, :], ut[t, :], xt[t + 1, :]))
-        )
+            np.hstack((xt[t, :], ut[t, :], xt[t + 1, :])))
 
-        prog.AddBoundingBoxConstraint(xbound[0], xbound[1], xt[t, :])
-        prog.AddBoundingBoxConstraint(ubound[0], ubound[1], ut[t, :])
+        prog.AddBoundingBoxConstraint(xbound[0, t], xbound[1, t], xt[t])
+        prog.AddBoundingBoxConstraint(ubound[0, t], ubound[1, t], ut[t])
 
         # Add cost.
-        prog.AddQuadraticErrorCost(Q, x_trj_d[t, :], xt[t, :])
-        prog.AddQuadraticCost(R, np.zeros(input_dim), ut[t, :])
+        # prog.AddQuadraticErrorCost(Qu, x_trj_d[t, indices_u_into_x],
+        #                            xt[t, indices_u_into_x])
+        prog.AddQuadraticErrorCost(Q, x_trj_d[t], xt[t])
+        if t == 0:
+            du = ut[t] - xt[t, indices_u_into_x]
+        else:
+            du = ut[t] - ut[t - 1]
+        prog.AddQuadraticCost(du.dot(R).dot(du))
 
     # Add final constraint.
     prog.AddQuadraticErrorCost(Qd, x_trj_d[timesteps, :], xt[timesteps, :])
-    prog.AddBoundingBoxConstraint(xbound[0], xbound[1], xt[timesteps, :])
+    prog.AddBoundingBoxConstraint(xbound[0, t], xbound[1, t], xt[timesteps, :])
 
     # 4. Solve the program.
     result = solver.Solve(prog)

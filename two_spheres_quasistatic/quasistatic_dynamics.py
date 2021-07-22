@@ -19,6 +19,16 @@ class QuasistaticDynamics:
             self.position_indices_dict[model] = \
                 q_sim.get_position_indices_for_model(model)
 
+    def get_u_indices_into_x(self):
+        u_indices = np.zeros(self.dim_u, dtype=int)
+        i_start = 0
+        for model in self.q_sim.models_actuated:
+            indices = self.q_sim.velocity_indices_dict[model]
+            n_a_i = len(indices)
+            u_indices[i_start: i_start + n_a_i] = indices
+            i_start += n_a_i
+        return u_indices
+
     def get_q_a_cmd_dict_from_u(self, u: np.ndarray):
         q_a_cmd_dict = dict()
         i_start = 0
@@ -50,8 +60,17 @@ class QuasistaticDynamics:
         for model in self.q_sim.models_actuated:
             n_v_i = self.q_sim.n_v_dict[model]
             u[i_start: i_start + n_v_i] = q_cmd_dict[model]
+            i_start += n_v_i
 
         return u
+
+    def get_Q_from_Q_dict(self,
+                          Q_dict: Dict[ModelInstanceIndex, np.ndarray]):
+        Q = np.eye(self.dim_x)
+        for model, idx in self.q_sim.velocity_indices_dict.items():
+            Q[idx, idx] = Q_dict[model]
+        return Q
+
 
     def dynamics(self, x: np.ndarray, u: np.ndarray,
                  mode: str = 'qp_mp', requires_grad: bool = False):
@@ -89,3 +108,7 @@ class QuasistaticDynamics:
         for i in range(n_batch):
             x_next[i] = self.dynamics(x[i], u[i])
         return x_next
+
+    def publish_trajectory(self, x_traj):
+        q_dict_traj = [self.get_q_dict_from_x(x) for x in x_traj]
+        self.q_sim.animate_system_trajectory(h=self.h, q_dict_traj=q_dict_traj)

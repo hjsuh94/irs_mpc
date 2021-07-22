@@ -7,8 +7,8 @@ class SqpLsQuasistatic:
     def __init__(self, q_dynamics: QuasistaticDynamics,
                  std_u_initial: np.ndarray, T: int,
                  Q: np.ndarray, R: np.ndarray,
-                 x_trj_d: np.ndarray, x_bounds: np.ndarray,
-                 u_bounds: np.ndarray,
+                 x_trj_d: np.ndarray, dx_bounds: np.ndarray,
+                 du_bounds: np.ndarray,
                  x0: np.ndarray, u_trj_0: np.ndarray):
         """
 
@@ -25,12 +25,17 @@ class SqpLsQuasistatic:
         self.Q = Q
         self.R = R
         self.x_trj_d = x_trj_d
-        self.x_bounds = x_bounds
-        self.u_bounds = u_bounds
+        self.dx_bounds = dx_bounds
+        self.du_bounds = du_bounds
+        self.indices_u_into_x = q_dynamics.get_u_indices_into_x()
 
         self.x_trj = self.rollout(x0, u_trj_0)
         self.u_trj = u_trj_0  # T x m
         self.cost = self.eval_cost(self.x_trj, self.u_trj)
+
+        self.x_trj_best = None
+        self.u_trj_best = None
+        self.cost_best = np.inf
 
         # sampling standard deviation.
         self.std_u_initial = std_u_initial
@@ -65,7 +70,7 @@ class SqpLsQuasistatic:
         cost += et.dot(self.Q).dot(et)
         return cost
 
-    def calc_B_zero_order(self, x_nominal: np.ndarray, u_nominal: np.ndarray,
+    def calc_AB_zero_order(self, x_nominal: np.ndarray, u_nominal: np.ndarray,
                           n_samples: int, std: float):
         """
         :param std: standard deviation of the normal distribution.
@@ -83,7 +88,7 @@ class SqpLsQuasistatic:
         return Bhat, du
 
     def calc_current_std(self):
-        a = self.current_iter ** 0.5
+        a = self.current_iter ** 0.8
         return self.std_u_initial / a
 
     def calc_AB_first_order(self, x_nominal: np.ndarray, u_nominal: np.ndarray,
@@ -94,7 +99,7 @@ class SqpLsQuasistatic:
 
         for i in range(n_samples):
             self.q_dynamics.dynamics(x_nominal, u_nominal + du[i],
-                                     mode='qp_cvx',
+                                     mode='qp_mp',
                                      requires_grad=True)
             _, _, Dq_nextDq, Dq_nextDqa_cmd = \
                 self.q_dynamics.q_sim.get_dynamics_derivatives()
@@ -154,22 +159,41 @@ class SqpLsQuasistatic:
         x_trj_new[0, :] = x_trj[0, :]
         u_trj_new = np.zeros(u_trj.shape)
 
-        x_star = None
-        u_star = None
+        '''
+        x_bounds: (2, T + 1, dim_x). 
+            - x_bounds[0]: lower bounds.
+            - x_bounds[1]: upper bounds.
+        u_bounds: (2, T, dim_u)
+            - u_bounds[0]: lower bounds.
+            - u_bounds[1]: upper bounds. 
+        '''
+        x_bounds = np.zeros((2, self.T + 1, self.dim_x))
+        u_bounds = np.zeros((2, self.T, self.dim_u))
+        x_bounds[0] = x_trj + self.dx_bounds[0]
+        x_bounds[1] = x_trj + self.dx_bounds[1]
+        u_bounds[0] = x_trj[:-1, self.indices_u_into_x] + self.du_bounds[0]
+        u_bounds[1] = x_trj[:-1, self.indices_u_into_x] + self.du_bounds[1]
+
         for t in range(self.T):
             x_star, u_star = solve_tvlqr(
                 At[t:self.T],
                 Bt[t:self.T],
-                ct[t:self.T], self.Q, self.Q,
+                ct[t:self.T], self.Q, self.Q * 10,
                 self.R, x_trj_new[t, :],
                 self.x_trj_d[t:],
-                self.x_bounds, self.u_bounds,
+                x_bounds[:, t:, :], u_bounds[:, t:, :],
                 solver=self.solver,
                 xinit=None,
-                uinit=None)
+                uinit=None,
+                indices_u_into_x=self.indices_u_into_x)
             u_trj_new[t, :] = u_star[0]
             x_trj_new[t + 1, :] = self.q_dynamics.dynamics(
                 x_trj_new[t], u_trj_new[t])
+
+        # u_trj_new = u_star
+        # for t in range(self.T):
+        #     x_trj_new[t + 1, :] = self.q_dynamics.dynamics(
+        #          x_trj_new[t], u_trj_new[t])
 
         return x_trj_new, u_trj_new
 
@@ -188,11 +212,16 @@ class SqpLsQuasistatic:
             self.u_trj_list.append(u_trj_new)
             self.cost_list.append(cost_new)
 
+            if self.cost_best > cost_new:
+                self.x_trj_best = x_trj_new
+                self.u_trj_best = u_trj_new
+                self.cost_best = cost_new
+
             if self.current_iter > max_iterations:
                 break
 
             """
-            if ((self.cost - cost_new) < convergence_gap) or (iter > max_iterations):
+            if self.cost - cost_new < convergence_gap or iter > max_iterations:
                 break
             """
 
@@ -201,5 +230,6 @@ class SqpLsQuasistatic:
             self.x_trj = x_trj_new
             self.u_trj = u_trj_new
             self.current_iter += 1
+
 
         return self.x_trj, self.u_trj, self.cost

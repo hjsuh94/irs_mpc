@@ -1,4 +1,5 @@
 import os
+import timeit
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -65,30 +66,30 @@ x0 = q_dynamics.get_x_from_q_dict(q0_dict)
 u_traj_0 = np.zeros((T, nq_a))
 
 x = np.copy(x0)
-# for i in range(T):
-#     print('--------------------------------')
-#     t = h * i
-#     q_cmd_dict = {idx_a: qa_traj.value(t + h).ravel()}
-#     u = q_dynamics.get_u_from_q_cmd_dict(q_cmd_dict)
-#     x = q_dynamics.dynamics(x, u, mode='qp_mp', requires_grad=True)
-#     _, _, Dq_nextDq, Dq_nextDqa_cmd = \
-#         q_dynamics.q_sim.get_dynamics_derivatives()
-#
-#     q_dynamics.dynamics(x, u, mode='qp_cvx', requires_grad=True)
-#     _, _, Dq_nextDq_cvx, Dq_nextDqa_cmd_cvx = \
-#         q_dynamics.q_sim.get_dynamics_derivatives()
-#
-#     print('t={},'.format(t), 'x:', x, 'u:', u)
-#     print('Dq_nextDq\n', Dq_nextDq)
-#     print('cvx\n', Dq_nextDq_cvx)
-#     print('Dq_nextDqa_cmd\n', Dq_nextDqa_cmd)
-#     print('cvx\n', Dq_nextDqa_cmd_cvx)
-#     u_traj_0[i] = u
+for i in range(T):
+    print('--------------------------------')
+    t = h * i
+    q_cmd_dict = {idx_a: qa_traj.value(t + h).ravel()}
+    u = q_dynamics.get_u_from_q_cmd_dict(q_cmd_dict)
+    x = q_dynamics.dynamics(x, u, mode='qp_mp', requires_grad=True)
+    _, _, Dq_nextDq, Dq_nextDqa_cmd = \
+        q_dynamics.q_sim.get_dynamics_derivatives()
+
+    q_dynamics.dynamics(x, u, mode='qp_cvx', requires_grad=True)
+    _, _, Dq_nextDq_cvx, Dq_nextDqa_cmd_cvx = \
+        q_dynamics.q_sim.get_dynamics_derivatives()
+
+    print('t={},'.format(t), 'x:', x, 'u:', u)
+    print('Dq_nextDq\n', Dq_nextDq)
+    print('cvx\n', Dq_nextDq_cvx)
+    print('Dq_nextDqa_cmd\n', Dq_nextDqa_cmd)
+    print('cvx\n', Dq_nextDqa_cmd_cvx)
+    u_traj_0[i] = u
 
 
 #%%
-x_bounds = np.array([-np.ones(dim_x) * 10, np.ones(dim_x) * 10])
-u_bounds = np.array([-np.ones(dim_u) * 10, np.ones(dim_u) * 10])
+dx_bounds = np.array([-np.ones(dim_x) * 1, np.ones(dim_x) * 1])
+du_bounds = np.array([-np.ones(dim_u) * 0.2, np.ones(dim_u) * 0.2])
 xd = np.array([0.2, 2.0])
 x_trj_d = np.tile(xd, (T + 1, 1))
 
@@ -96,11 +97,11 @@ sqp_ls_q = SqpLsQuasistatic(
     q_dynamics=q_dynamics,
     std_u_initial=np.ones(dim_u) * 0.1,
     T=T,
-    Q=np.diag([5, 5]),
+    Q=np.diag([10, 10]),
     R=np.diag([1]),
     x_trj_d=x_trj_d,
-    x_bounds=x_bounds,
-    u_bounds=u_bounds,
+    dx_bounds=dx_bounds,
+    du_bounds=du_bounds,
     x0=x0,
     u_trj_0=u_traj_0)
 
@@ -122,11 +123,9 @@ print('Bhat1\n', Bhat1)
 
 
 #%% zero-th order estimate of B.
-Bhat0, du = sqp_ls_q.calc_B_zero_order(
-    x_nominal=x_nominal,
-    u_nominal=u_nominal,
-    n_samples=10000,
-    std=0.05)
+Bhat0, du = sqp_ls_q.calc_AB_zero_order(x_nominal=x_nominal,
+                                        u_nominal=u_nominal, n_samples=100,
+                                        std=0.05)
 
 print('Bhat0\n', Bhat0)
 
