@@ -1,4 +1,4 @@
-class DynamicalSystem():
+class DynamicalSystem:
     def __init__(self): 
         """
         Base virtual dynamical systems class. 

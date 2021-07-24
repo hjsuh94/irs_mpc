@@ -1,3 +1,4 @@
+from irs_lqr.irs_lqr import IrsLqr
 from pendulum_dynamics import PendulumDynamics
 import numpy as np
 import pydrake.symbolic as ps
@@ -9,6 +10,8 @@ import time
 import matplotlib.pyplot as plt
 from matplotlib import cm
 
+from irs_lqr.dynamical_system import DynamicalSystem
+from irs_lqr.irs_lqr import IrsLqrParameters
 from irs_lqr.irs_lqr_exact import IrsLqrExact
 from irs_lqr.irs_lqr_zero_order import IrsLqrZeroOrder
 
@@ -60,55 +63,57 @@ for iter in range(num_iter):
 """4. Wrap up functions to pass to IrsLqr."""
 dynamics_net.eval()
 
-def dynamics_nn(x, u):
-    xu = torch.Tensor(np.concatenate((x,u))).unsqueeze(0)
-    xnext = dynamics_net(xu)
-    return xnext.detach().numpy()
+class PendulumNN(DynamicalSystem):
+    def __init__(self):
+        super().__init__()
 
-def dynamics_batch_nn(x, u):
-    xu = torch.Tensor(np.hstack((x,u)))
-    xnext = dynamics_net(xu)
-    return xnext.detach().numpy()    
+        self.dim_x = 2 
+        self.dim_u = 1
 
-def jacobian_xu_nn(x, u):
-    xu = torch.Tensor(np.concatenate((x,u))).unsqueeze(0)
-    xu.requires_grad = True
-    xnext = dynamics_net(xu)
-    dJdxu0 = torch.autograd.grad(xnext[0,0], xu, retain_graph=True)[0].numpy()
-    dJdxu1 = torch.autograd.grad(xnext[0,1], xu)[0].numpy()
-    dJdxu = np.vstack((dJdxu0, dJdxu1))
-    return dJdxu[0:2]
+    def dynamics(x, u):
+        xu = torch.Tensor(np.concatenate((x,u))).unsqueeze(0)
+        xnext = dynamics_net(xu)
+        return xnext.detach().numpy()
+
+    def dynamics_batch(x, u):
+        xu = torch.Tensor(np.hstack((x,u)))
+        xnext = dynamics_net(xu)
+        return xnext.detach().numpy()    
+
+    def jacobian_xu(x, u):
+        xu = torch.Tensor(np.concatenate((x,u))).unsqueeze(0)
+        xu.requires_grad = True
+        xnext = dynamics_net(xu)
+        dJdxu0 = torch.autograd.grad(xnext[0,0], xu, retain_graph=True)[0].numpy()
+        dJdxu1 = torch.autograd.grad(xnext[0,1], xu)[0].numpy()
+        dJdxu = np.vstack((dJdxu0, dJdxu1))
+        return dJdxu[0:2]
+
+pendulum_nn = PendulumNN()
 
 """5. Test IrsLqr."""
 timesteps = 200
-Q = np.diag([1, 1])
-Qd = np.diag([20., 20.])
-R = np.diag([1])
-x0 = np.array([0, 0])
-xd = np.array([np.pi, 0])
-xd_trj = np.tile(xd, (timesteps+1,1))
-xbound = [
+
+params = IrsLqrParameters()
+
+params.Q = np.diag([1, 1])
+params.Qd = np.diag([20., 20.])
+params.R = np.diag([1])
+params.x0 = np.array([0, 0])
+params.xd_trj = np.tile(np.array([np.pi, 0]), (timesteps+1,1))
+params.xbound = [
     -np.array([1e4, 1e4]),
      np.array([1e4, 1e4])
 ]
-ubound = np.array([
+params.ubound = np.array([
     -np.array([1e4]),
      np.array([1e4])
 ])
+params.u_trj_initial = np.tile(np.array([0.1]), (timesteps,1))
 
-# 3. Set up initial guess.
-u_trj_initial = np.tile(np.array([0.1]), (timesteps,1))
-x_initial_var = np.array([1.0, 1.0])
-u_initial_var = np.array([1.0])
-num_samples = 10000
-
-# 4. Solve.
+# 3. Try exact.
 try:
-    solver = IrsLqrExact(
-        dynamics_nn,
-        jacobian_xu_nn,
-        Q, Qd, R, x0, xd_trj, u_trj_initial,
-        xbound, ubound)
+    solver = IrsLqrExact(pendulum_nn, params)
 
     time_now = time.time()
     solver.iterate(1e-6, 30)
@@ -129,9 +134,13 @@ try:
     plt.show()
 
 except ValueError:
-    print("DiLQR_Exact Failed to find a solution.")
+    print("IrsLqrExact Failed to find a solution.")
 
 try:
+
+    num_samples = 10000
+    x_initial_var = np.array([1.0, 1.0])
+    u_initial_var = np.array([1.0])
 
     def sampling(xbar, ubar, iter):
         dx = np.random.normal(0.0, (x_initial_var / (iter ** 0.5)),
@@ -140,12 +149,7 @@ try:
             size = (num_samples, pendulum.dim_u))        
         return dx, du
 
-    solver = IrsLqrZeroOrder(
-        dynamics_nn,
-        dynamics_batch_nn,
-        sampling,
-        Q, Qd, R, x0, xd_trj, u_trj_initial,
-        xbound, ubound)
+    solver = IrsLqrZeroOrder(pendulum_nn, params, sampling)
 
     time_now = time.time()
     solver.iterate(1e-6, 30)
@@ -166,4 +170,4 @@ try:
     plt.show()
 
 except ValueError:
-    print("DiLQR_RS Failed to find a solution.")
+    print("IrsLqrZeroOrder Failed to find a solution.")

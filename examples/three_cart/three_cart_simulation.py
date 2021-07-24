@@ -4,8 +4,8 @@ import time, os
 import matplotlib.pyplot as plt
 
 carts = ThreeCartDynamics(0.05)
-dynamics = carts.dynamics_np
-dynamics_batch = carts.dynamics_batch_np
+dynamics = carts.dynamics
+dynamics_batch = carts.dynamics_batch
 projection = carts.projection
 
 timesteps = 100

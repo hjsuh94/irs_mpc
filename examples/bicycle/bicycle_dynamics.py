@@ -7,7 +7,7 @@ from irs_lqr.dynamical_system import DynamicalSystem
 
 class BicycleDynamics(DynamicalSystem):
     def __init__(self, h):
-        super(BicycleDynamics, self).__init__()
+        super().__init__()
         """
         x = [x pos, y pos, heading, speed, steering_angle]
         u = [acceleration, steering_velocity]

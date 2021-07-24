@@ -3,10 +3,8 @@ import numpy as np
 from irs_lqr.irs_lqr import IrsLqr
 
 class IrsLqrFirstOrder(IrsLqr):
-    def __init__(self, system, sampling,
-        Q, Qd, R, x0, xdt, u_trj_initial, xbound, ubound, solver_name="osqp"):
-        super(IrsLqrFirstOrder, self).__init__(system, Q, Qd, R, x0, xdt,
-            u_trj_initial, xbound, ubound, solver_name)
+    def __init__(self, system, params, sampling):
+        super().__init__(system, params)
         """
         Direct iterative LQR using Randomized Smoothing.
         This variant samples gradients directly.

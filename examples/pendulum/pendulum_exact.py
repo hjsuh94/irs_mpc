@@ -5,36 +5,33 @@ import matplotlib.pyplot as plt
 from matplotlib import cm
 
 from pendulum_dynamics import PendulumDynamics
-from irs_lqr.irs_lqr_exact import IrsLqrExact
+from irs_lqr.all import IrsLqrParameters, IrsLqrExact
 
 # 1. Load dynamics.
 pendulum = PendulumDynamics(0.05)
 
 # 2. Set up desried trajectory and cost parameters.
 timesteps = 200
-Q = np.diag([1., 1.])
-Qd = np.diag([20., 20.])
-R = np.diag([1.])
-x0 = np.array([0., 0.])
-xd = np.array([np.pi, 0.])
-xd_trj = np.tile(xd, (timesteps+1,1))
-xbound = [
+
+params = IrsLqrParameters()
+params.Q = np.diag([1., 1.])
+params.Qd = np.diag([20., 20.])
+params.R = np.diag([1.])
+params.x0 = np.array([0., 0.])
+params.xd_trj = np.tile(
+    np.array([np.pi, 0.]), (timesteps+1,1))
+params.xbound = [
     -np.array([1e4, 1e4]),
      np.array([1e4, 1e4])
 ]
-ubound = np.array([
+params.ubound = np.array([
     -np.array([1e4]),
      np.array([1e4])
 ])
+params.u_trj_initial = np.tile(np.array([0.1]), (timesteps,1))
 
-# 3. Set up initial guess.
-u_trj_initial = np.tile(np.array([0.1]), (timesteps,1))
-
-# 4. Solve.
-solver = IrsLqrExact(
-    pendulum,
-    Q, Qd, R, x0, xd_trj, u_trj_initial,
-    xbound, ubound, solver_name="osqp")
+# 3. Solve.
+solver = IrsLqrExact(pendulum, params)
 
 time_now = time.time()
 solver.iterate(10)

@@ -3,10 +3,8 @@ import numpy as np
 from irs_lqr.irs_lqr import IrsLqr
 
 class IrsLqrZeroOrder(IrsLqr):
-    def __init__(self, system, sampling,
-        Q, Qd, R, x0, xdt, u_trj_initial, xbound, ubound, solver_name="osqp"):
-        super(IrsLqrZeroOrder, self).__init__(system, Q, Qd, R, x0, xdt,
-            u_trj_initial, xbound, ubound, solver_name)
+    def __init__(self, system, params, sampling):
+        super().__init__(system, params)
         """
         Direct Iterative LQR using Randomized Smoothing.
         This is a zero-order variant that samples dynamics directly.

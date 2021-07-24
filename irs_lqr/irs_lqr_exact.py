@@ -4,10 +4,8 @@ import time
 from irs_lqr.irs_lqr import IrsLqr
 
 class IrsLqrExact(IrsLqr):
-    def __init__(self, system,
-        Q, Qd, R, x0, xdt, u_trj_initial, xbound, ubound, solver_name="osqp"):
-        super(IrsLqrExact, self).__init__(system, Q, Qd, R, x0, xdt,
-            u_trj_initial, xbound, ubound, solver_name)
+    def __init__(self, system, params):
+        super().__init__(system, params)
         """
         Direct Iterative LQR using exact gradients.
         Requires:

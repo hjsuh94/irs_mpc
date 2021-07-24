@@ -3,36 +3,54 @@ import time
 
 from irs_lqr.tv_lqr import TvLqr, get_solver
 
-class IrsLqr():
-    def __init__(self, system, Q, Qd, R, x0, xd_trj, u_trj_initial, 
-        xbound, ubound, solver_name="osqp"):
+class IrsLqrParameters:
+    """
+    Parmeters class for IrsLqr.
+
+    Q (np.array, shape n x n): cost matrix for state.
+    Qd (np.array, shape n x n): cost matrix for final state.
+    R (np.array, shape m x m): cost matrix for input.
+    x0 (np.array, shape n): initial point in state-space.
+    xd_trj (np.array, shape (T+1) x n): desired trajectory.
+    u_trj_initial (np.array, shape T x m): initial guess of the input.
+    xbound (np.array, shape 2 x n): (lb, ub) bounds on state.
+    xbound (np.array, shape 2 x m): (lb, ub) bounds on input.
+    solver (str): solver name to use for direct LQR.
+    """
+    def __init__(self):
+        self.Q = None
+        self.Qd = None
+        self.R = None
+        self.x0 = None
+        self.xd_trj = None
+        self.u_trj_initial = None
+        self.xbound = None
+        self.ubound = None
+        self.solver_name = "osqp"
+
+class IrsLqr:
+    def __init__(self, system, params):
         """
-        Base class for Direct iterative LQR.
+        Base class for iterative Randomized Smoothing LQR.
 
         system (DynamicalSystem class): dynamics class.
-        Q (np.array, shape n x n): cost matrix for state.
-        Qd (np.array, shape n x n): cost matrix for final state.
-        R (np.array, shape m x m): cost matrix for input.
-        x0 (np.array, shape n): initial point in state-space.
-        xd_trj (np.array, shape (T+1) x n): desired trajectory.
-        u_trj_initial (np.array, shape T x m): initial guess of the input.
-        xbound (np.array, shape 2 x n): (lb, ub) bounds on state.
-        xbound (np.array, shape 2 x m): (lb, ub) bounds on input.
-        solver (str): solver name to use for direct LQR.
+        parms (IrsLqrParameters class): parameters class.
         """
 
         self.system = system
-        self.check_valid_system(system)
+        self.params = params
+        self.check_valid_system(self.system)
+        self.check_valid_params(self.params, self.system)
 
-        self.x0 = x0
-        self.u_trj = u_trj_initial # T x m
-        self.Q = Q
-        self.Qd = Qd
-        self.R = R
-        self.xd_trj = xd_trj
-        self.xbound = xbound
-        self.ubound = ubound
-        self.solver = get_solver(solver_name)
+        self.Q = params.Q
+        self.Qd = params.Qd
+        self.R = params.R
+        self.x0 = params.x0
+        self.xd_trj = params.xd_trj
+        self.u_trj = params.u_trj_initial
+        self.xbound = params.xbound
+        self.ubound = params.ubound
+        self.solver = get_solver(params.solver_name)
 
         self.T = self.u_trj.shape[0] # horizon of the problem
         self.dim_x = self.system.dim_x
@@ -52,6 +70,7 @@ class IrsLqr():
     def check_valid_system(self, system):
         """
         Check if the system is valid. Otherwise, throw exception.
+        TODO(terry-suh): we can add more error checking later.        
         """
         if (system.dim_x == 0):
             raise RuntimeError(
@@ -64,6 +83,21 @@ class IrsLqr():
         except:
             raise RuntimeError(
                 "Could not evaluate dynamics. Have you implemented it?")
+
+    def check_valid_params(self, params, system):
+        """
+        Check if the parameter is valid. Otherwise, throw exception.
+        TODO(terry-suh): we can add more error checking later.
+        """
+        if (params.Q.shape != (system.dim_x, system.dim_x)):
+            raise RuntimeError(
+                "Q matrix must be diagonal with dim_x x dim_x.")
+        if (params.Qd.shape != (system.dim_x, system.dim_x)):
+            raise RuntimeError(
+                "Qd matrix must be diagonal with dim_x x dim_x.")
+        if (params.R.shape != (system.dim_u, system.dim_u)):
+            raise RuntimeError(
+                "R matrix must be diagonal with dim_u x dim_u.")                
 
     def rollout(self, x0, u_trj):
         """
@@ -166,4 +200,3 @@ class IrsLqr():
             self.iter += 1
 
         return self.x_trj, self.u_trj, self.cost
-

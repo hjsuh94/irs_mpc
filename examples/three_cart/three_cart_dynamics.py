@@ -7,7 +7,7 @@ from irs_lqr.dynamical_system import DynamicalSystem
 
 class ThreeCartDynamics(DynamicalSystem):
     def __init__(self, dt):
-        super(ThreeCartDynamics, self).__init__()
+        super().__init__()
         """
         x = [q1, q2, q3, v1, v2, v3]
         u = [u1, u3]
