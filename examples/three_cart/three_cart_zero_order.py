@@ -2,7 +2,7 @@ import numpy as np
 import time
 
 from three_cart_dynamics import ThreeCartDynamics
-from dilqr_rs.dilqr_rs_zero import DiLQR_RS_Zero
+from irs_lqr.irs_lqr_zero_order import IrsLqrZeroOrder
 
 import matplotlib.pyplot as plt 
 from matplotlib import cm
@@ -17,7 +17,7 @@ Qd = np.diag([50, 50, 50, 20, 100, 20])
 R = 0.01 * np.diag([1, 1])
 x0 = np.array([0, 1, 2, 0, 0, 0])
 xd = np.array([2, 3, 4, 0, 0, 0])
-xdt = np.tile(xd, (timesteps+1,1))
+xd_trj = np.tile(xd, (timesteps+1,1))
 xbound = [
     -np.array([1e4, 1e4, 1e4, 1e4, 1e4, 1e4]),
      np.array([1e4, 1e4, 1e4, 1e4, 1e4, 1e4])
@@ -28,7 +28,7 @@ ubound = np.array([
 ])
 
 # 3. Set up initial guess.
-u_trj = np.tile(np.array([0.1, -0.1]), (timesteps,1))
+u_trj_initial = np.tile(np.array([0.1, -0.1]), (timesteps,1))
 x_initial_var = np.array([4.0, 4.0, 4.0, 4.0, 4.0, 4.0])
 u_initial_var = np.array([0.5, 0.5])
 num_samples = 1000
@@ -41,14 +41,14 @@ def sampling(xbar, ubar, iter):
     return carts.projection(xbar, dx, ubar, du)
 
 # 4. Solve.
-sqp_exact = DiLQR_RS_Zero(
+solver = IrsLqrZeroOrder(
     carts, sampling,
-    Q, Qd, R, x0, xdt, u_trj,
+    Q, Qd, R, x0, xd_trj, u_trj_initial,
     xbound, ubound)
 
 time_now = time.time()
-sqp_exact.iterate(20)
-print("Final cost: " + str(sqp_exact.cost))
+solver.iterate(20)
+print("Final cost: " + str(solver.cost))
 print("Elapsed time: " + str(time.time() - time_now))
 
 plt.figure()
@@ -58,9 +58,9 @@ purples = cm.get_cmap("Purples")
 greens = cm.get_cmap("Greens")
 oranges = cm.get_cmap("Oranges")
 
-num_iters = len(sqp_exact.x_trj_lst)
+num_iters = len(solver.x_trj_lst)
 for i in range(num_iters):
-    x_trj = sqp_exact.x_trj_lst[i]
+    x_trj = solver.x_trj_lst[i]
     jm = colormap(i/ num_iters)
     plt.plot(range(timesteps+1), x_trj[:,0], color=purples(i / num_iters))    
     plt.plot(range(timesteps+1), x_trj[:,1], color=oranges(i / num_iters))    
@@ -70,7 +70,7 @@ plt.show()
 plt.figure()    
 
 for i in range(num_iters):
-    u_trj = sqp_exact.x_trj_lst[i]    
+    u_trj = solver.x_trj_lst[i]    
     plt.plot(range(timesteps+1), u_trj[:,0], color=purples(i/num_iters))
     plt.plot(range(timesteps+1), u_trj[:,2], color=greens(i/num_iters))    
 

@@ -1,10 +1,10 @@
 import numpy as np
 import time
 
-from dilqr_rs.tv_dlqr import TV_DLQR, get_solver
+from irs_lqr.tv_lqr import TvLqr, get_solver
 
-class DiLQR():
-    def __init__(self, system, Q, Qd, R, x0, xd_trj, u_trj, 
+class IrsLqr():
+    def __init__(self, system, Q, Qd, R, x0, xd_trj, u_trj_initial, 
         xbound, ubound, solver_name="osqp"):
         """
         Base class for Direct iterative LQR.
@@ -15,7 +15,7 @@ class DiLQR():
         R (np.array, shape m x m): cost matrix for input.
         x0 (np.array, shape n): initial point in state-space.
         xd_trj (np.array, shape (T+1) x n): desired trajectory.
-        u_trj (np.array, shape T x m): initial guess of the input trajectory.
+        u_trj_initial (np.array, shape T x m): initial guess of the input.
         xbound (np.array, shape 2 x n): (lb, ub) bounds on state.
         xbound (np.array, shape 2 x m): (lb, ub) bounds on input.
         solver (str): solver name to use for direct LQR.
@@ -25,7 +25,7 @@ class DiLQR():
         self.check_valid_system(system)
 
         self.x0 = x0
-        self.u_trj = u_trj # T x m
+        self.u_trj = u_trj_initial # T x m
         self.Q = Q
         self.Qd = Qd
         self.R = R
@@ -37,7 +37,7 @@ class DiLQR():
         self.T = self.u_trj.shape[0] # horizon of the problem
         self.dim_x = self.system.dim_x
         self.dim_u = self.system.dim_u
-        self.x_trj = self.rollout(self.x0, u_trj)
+        self.x_trj = self.rollout(self.x0, self.u_trj)
         self.cost = self.evaluate_cost(self.x_trj, self.u_trj)
 
         # These store iterations for plotting.
@@ -78,6 +78,7 @@ class DiLQR():
         x_trj[0,:] = x0
         for t in range(self.T):
             x_trj[t+1,:] = self.system.dynamics(x_trj[t,:], u_trj[t,:])
+
         return x_trj
 
     def evaluate_cost(self, x_trj, u_trj):
@@ -120,7 +121,7 @@ class DiLQR():
         u_trj_new = np.zeros(u_trj.shape)
 
         for t in range(self.T):
-            x_star, u_star = TV_DLQR(
+            x_star, u_star = TvLqr(
                 At[t:self.T],
                 Bt[t:self.T],
                 ct[t:self.T],

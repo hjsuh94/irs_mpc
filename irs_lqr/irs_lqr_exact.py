@@ -1,13 +1,13 @@
 import numpy as np
 import time
 
-from dilqr_rs.dilqr import DiLQR
+from irs_lqr.irs_lqr import IrsLqr
 
-class DiLQR_Exact(DiLQR):
+class IrsLqrExact(IrsLqr):
     def __init__(self, system,
-        Q, Qd, R, x0, xdt, u_trj, xbound, ubound, solver_name="osqp"):
-        super(DiLQR_Exact, self).__init__(system, Q, Qd, R, x0, xdt, u_trj,
-            xbound, ubound, solver_name)
+        Q, Qd, R, x0, xdt, u_trj_initial, xbound, ubound, solver_name="osqp"):
+        super(IrsLqrExact, self).__init__(system, Q, Qd, R, x0, xdt,
+            u_trj_initial, xbound, ubound, solver_name)
         """
         Direct Iterative LQR using exact gradients.
         Requires:

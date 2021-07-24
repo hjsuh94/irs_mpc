@@ -3,7 +3,7 @@ import pydrake.symbolic as ps
 import torch
 import time
 
-from dilqr_rs.dynamical_system import DynamicalSystem
+from irs_lqr.dynamical_system import DynamicalSystem
 
 class PendulumDynamics(DynamicalSystem):
     def __init__(self, h):

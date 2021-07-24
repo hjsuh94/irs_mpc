@@ -9,8 +9,8 @@ import time
 import matplotlib.pyplot as plt
 from matplotlib import cm
 
-from dilqr_exact import DiLQR_Exact
-from dilqr_rs_zero import DiLQR_RS_Zero
+from irs_lqr.irs_lqr_exact import IrsLqrExact
+from irs_lqr.irs_lqr_zero_order import IrsLqrZeroOrder
 
 """1. Define some random ReLU NLP."""
 class DynamicsNLP(nn.Module):
@@ -54,11 +54,10 @@ for iter in range(num_iter):
     output = dynamics_net(torch.Tensor(xu))
     loss = criterion(output, torch.Tensor(xtarget))
     loss.backward()
-    print(loss)
     optimizer.step()
     scheduler.step()
 
-"""4. Wrap up functions to pass to DiLQR."""
+"""4. Wrap up functions to pass to IrsLqr."""
 dynamics_net.eval()
 
 def dynamics_nn(x, u):
@@ -80,14 +79,14 @@ def jacobian_xu_nn(x, u):
     dJdxu = np.vstack((dJdxu0, dJdxu1))
     return dJdxu[0:2]
 
-"""5. Test SQP."""
+"""5. Test IrsLqr."""
 timesteps = 200
 Q = np.diag([1, 1])
 Qd = np.diag([20., 20.])
 R = np.diag([1])
 x0 = np.array([0, 0])
 xd = np.array([np.pi, 0])
-xdt = np.tile(xd, (timesteps+1,1))
+xd_trj = np.tile(xd, (timesteps+1,1))
 xbound = [
     -np.array([1e4, 1e4]),
      np.array([1e4, 1e4])
@@ -98,31 +97,30 @@ ubound = np.array([
 ])
 
 # 3. Set up initial guess.
-u_trj = np.tile(np.array([0.1]), (timesteps,1))
+u_trj_initial = np.tile(np.array([0.1]), (timesteps,1))
 x_initial_var = np.array([1.0, 1.0])
 u_initial_var = np.array([1.0])
 num_samples = 10000
 
 # 4. Solve.
 try:
-    sqp_exact = DiLQR_Exact(
+    solver = IrsLqrExact(
         dynamics_nn,
         jacobian_xu_nn,
-        Q, Qd, R, x0, xdt, u_trj,
+        Q, Qd, R, x0, xd_trj, u_trj_initial,
         xbound, ubound)
 
     time_now = time.time()
-    sqp_exact.iterate(1e-6, 30)
-    print("Final cost: " + str(sqp_exact.cost))
+    solver.iterate(1e-6, 30)
+    print("Final cost: " + str(solver.cost))
     print("Elapsed time: " + str(time.time() - time_now))
 
     plt.figure()
     plt.axis('equal')
     colormap = cm.get_cmap("jet")
-    num_iters = len(sqp_exact.x_trj_lst)
-    print(num_iters)
+    num_iters = len(solver.x_trj_lst)
     for i in range(num_iters):
-        x_trj = sqp_exact.x_trj_lst[i]
+        x_trj = solver.x_trj_lst[i]
         jm = colormap(i/ num_iters)
         plt.plot(x_trj[:,0], x_trj[:,1], color=(jm[0], jm[1], jm[2], i / num_iters))        
 
@@ -142,25 +140,24 @@ try:
             size = (num_samples, pendulum.dim_u))        
         return dx, du
 
-    sqp_exact = DiLQR_RS_Zero(
+    solver = IrsLqrZeroOrder(
         dynamics_nn,
         dynamics_batch_nn,
         sampling,
-        Q, Qd, R, x0, xdt, u_trj,
+        Q, Qd, R, x0, xd_trj, u_trj_initial,
         xbound, ubound)
 
     time_now = time.time()
-    sqp_exact.iterate(1e-6, 30)
-    print("Final cost: " + str(sqp_exact.cost))
+    solver.iterate(1e-6, 30)
+    print("Final cost: " + str(solver.cost))
     print("Elapsed time: " + str(time.time() - time_now))
 
     plt.figure()
     plt.axis('equal')
     colormap = cm.get_cmap("jet")
-    num_iters = len(sqp_exact.x_trj_lst)
-    print(num_iters)
+    num_iters = len(solver.x_trj_lst)
     for i in range(num_iters):
-        x_trj = sqp_exact.x_trj_lst[i]
+        x_trj = solver.x_trj_lst[i]
         jm = colormap(i/ num_iters)
         plt.plot(x_trj[:,0], x_trj[:,1], color=(jm[0], jm[1], jm[2], i / num_iters))
 

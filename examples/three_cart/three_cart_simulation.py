@@ -1,9 +1,9 @@
-from three_cart_implicit.three_cart_dynamics import ThreeCartDynamicsImplicit
+from three_cart_dynamics import ThreeCartDynamics
 import numpy as np
 import time, os
 import matplotlib.pyplot as plt
 
-carts = ThreeCartDynamicsImplicit(0.05)
+carts = ThreeCartDynamics(0.05)
 dynamics = carts.dynamics_np
 dynamics_batch = carts.dynamics_batch_np
 projection = carts.projection

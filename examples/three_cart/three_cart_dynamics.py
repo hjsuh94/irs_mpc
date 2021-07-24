@@ -3,7 +3,7 @@ import pydrake.symbolic as ps
 import torch
 import time
 
-from dilqr_rs.dynamical_system import DynamicalSystem
+from irs_lqr.dynamical_system import DynamicalSystem
 
 class ThreeCartDynamics(DynamicalSystem):
     def __init__(self, dt):
@@ -137,7 +137,8 @@ class ThreeCartDynamics(DynamicalSystem):
         q2_semi = q2 + self.h * v2_semi
         q3_semi = q3 + self.h * v3_semi
 
-        x_semi = np.vstack((q1_semi, q2_semi, q3_semi, v1_semi, v2_semi, v3_semi)).transpose()
+        x_semi = np.vstack((q1_semi, q2_semi, q3_semi, 
+            v1_semi, v2_semi, v3_semi)).transpose()
 
         # 4. Resolve collisions.
 
@@ -261,4 +262,3 @@ class ThreeCartDynamics(DynamicalSystem):
             x_proj[penetration_indices] = np.expand_dims(penetrating_samples, axis=1)
 
         return x_proj, u_proj
-

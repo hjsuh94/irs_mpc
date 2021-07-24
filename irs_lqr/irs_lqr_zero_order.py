@@ -1,12 +1,12 @@
 import numpy as np
 
-from dilqr_rs.dilqr import DiLQR
+from irs_lqr.irs_lqr import IrsLqr
 
-class DiLQR_RS_Zero(DiLQR):
+class IrsLqrZeroOrder(IrsLqr):
     def __init__(self, system, sampling,
-        Q, Qd, R, x0, xdt, u_trj, xbound, ubound, solver_name="osqp"):
-        super(DiLQR_RS_Zero, self).__init__(system, Q, Qd, R, x0, xdt, u_trj,
-            xbound, ubound, solver_name)
+        Q, Qd, R, x0, xdt, u_trj_initial, xbound, ubound, solver_name="osqp"):
+        super(IrsLqrZeroOrder, self).__init__(system, Q, Qd, R, x0, xdt,
+            u_trj_initial, xbound, ubound, solver_name)
         """
         Direct Iterative LQR using Randomized Smoothing.
         This is a zero-order variant that samples dynamics directly.
@@ -47,7 +47,7 @@ class DiLQR_RS_Zero(DiLQR):
         At = np.zeros((self.T, self.dim_x, self.dim_x))
         Bt = np.zeros((self.T, self.dim_x, self.dim_u))
         ct = np.zeros((self.T, self.dim_x))
-        
+
         for t in range(self.T):
             dx, du = self.sampling(x_trj[t], u_trj[t], self.iter)
             fdt = self.system.dynamics_batch(x_trj[t] + dx, u_trj[t] + du)

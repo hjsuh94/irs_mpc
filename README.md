@@ -1,2 +1,2 @@
-# DiLQR_RS
-Direct iterative LQR with Ranomdized Smoothing
+# iRS-LQR
+Iterative Randomized Smoothing LQR

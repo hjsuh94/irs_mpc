@@ -1,15 +1,13 @@
-import numpy as np
-
 class DynamicalSystem():
     def __init__(self): 
         """
         Base virtual dynamical systems class. 
         Any dynamics as an input to the system must inherit from this class.
+        TODO(terry-suh): Consider using ABC?
         """
         self.h = 0
         self.dim_x = 0
         self.dim_u = 0
-
 
     def dynamics(self, x, u):
         """

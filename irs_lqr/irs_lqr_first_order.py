@@ -1,12 +1,12 @@
 import numpy as np
 
-from dilqr_rs.dilqr import DiLQR
+from irs_lqr.irs_lqr import IrsLqr
 
-class DiLQR_RS_Gradient(DiLQR):
+class IrsLqrFirstOrder(IrsLqr):
     def __init__(self, system, sampling,
-        Q, Qd, R, x0, xdt, u_trj, xbound, ubound, solver_name="osqp"):
-        super(DiLQR_RS_Gradient, self).__init__(system, Q, Qd, R, x0, xdt, u_trj,
-            xbound, ubound, solver_name)
+        Q, Qd, R, x0, xdt, u_trj_initial, xbound, ubound, solver_name="osqp"):
+        super(IrsLqrFirstOrder, self).__init__(system, Q, Qd, R, x0, xdt,
+            u_trj_initial, xbound, ubound, solver_name)
         """
         Direct iterative LQR using Randomized Smoothing.
         This variant samples gradients directly.
