@@ -3,20 +3,23 @@ import pydrake.symbolic as ps
 import torch
 import time
 
-class ThreeCartDynamicsImplicit():
+from irs_lqr.dynamical_system import DynamicalSystem
+
+class ThreeCartDynamics(DynamicalSystem):
     def __init__(self, dt):
+        super().__init__()
         """
         x = [q1, q2, q3, v1, v2, v3]
         u = [u1, u3]
         """
-        self.dt = dt
+        self.h = dt
         self.dim_x = 6
         self.dim_u = 2
         self.d = 0.2 # Cart width.
 
         """Non differentiable simulation, does not support Jacobian computations."""
 
-    def dynamics_np(self, x, u):
+    def dynamics(self, x, u):
         """
         Numeric expression for dynamics.
         x (np.array, dim: n): state
@@ -27,14 +30,14 @@ class ThreeCartDynamicsImplicit():
         u1, u3 = u
 
         # 2. Update velocities.
-        v1_semi = v1 + self.dt * u1
+        v1_semi = v1 + self.h * u1
         v2_semi = v2
-        v3_semi = v3 + self.dt * u3
+        v3_semi = v3 + self.h * u3
 
         # 3. Update positions using semi-implicit integration.
-        q1_semi = q1 + self.dt * v1_semi
-        q2_semi = q2 + self.dt * v2_semi
-        q3_semi = q3 + self.dt * v3_semi
+        q1_semi = q1 + self.h * v1_semi
+        q2_semi = q2 + self.h * v2_semi
+        q3_semi = q3 + self.h * v3_semi
 
         # 4. Resolve collisions.
         # Case 1. All three are in collision
@@ -103,7 +106,7 @@ class ThreeCartDynamicsImplicit():
         x_new = np.array([q1_next, q2_next, q3_next, v1_next, v2_next, v3_next])
         return x_new
 
-    def dynamics_batch_np(self, x, u):
+    def dynamics_batch(self, x, u):
         """
         Batch dynamics using numpy.
         -args:
@@ -125,16 +128,17 @@ class ThreeCartDynamicsImplicit():
         u3 = u[:,1]
 
         # 2. Update velocities.
-        v1_semi = v1 + self.dt * u1
+        v1_semi = v1 + self.h * u1
         v2_semi = v2
-        v3_semi = v3 + self.dt * u3
+        v3_semi = v3 + self.h * u3
 
         # 3. Update positions using semi-implicit integration.
-        q1_semi = q1 + self.dt * v1_semi
-        q2_semi = q2 + self.dt * v2_semi
-        q3_semi = q3 + self.dt * v3_semi
+        q1_semi = q1 + self.h * v1_semi
+        q2_semi = q2 + self.h * v2_semi
+        q3_semi = q3 + self.h * v3_semi
 
-        x_semi = np.vstack((q1_semi, q2_semi, q3_semi, v1_semi, v2_semi, v3_semi)).transpose()
+        x_semi = np.vstack((q1_semi, q2_semi, q3_semi, 
+            v1_semi, v2_semi, v3_semi)).transpose()
 
         # 4. Resolve collisions.
 
@@ -258,4 +262,3 @@ class ThreeCartDynamicsImplicit():
             x_proj[penetration_indices] = np.expand_dims(penetrating_samples, axis=1)
 
         return x_proj, u_proj
-

@@ -2,10 +2,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 
-x_trj = np.load("pendulum_explicit/results/x_trj_06.npy")
-image_save_dir = "pendulum_explicit/results/animation"
-#os.mkdir(image_save_dir)
-
+x_trj = np.load("pendulum/results/x_trj_06.npy")
+image_save_dir = "pendulum/results/animation"
 
 for iter in [6]:
     image_dir = os.path.join(image_save_dir, "{:02d}".format(iter))
@@ -22,4 +20,3 @@ for iter in [6]:
         plt.ylim([-1.6, 1.6])
         plt.savefig(os.path.join(image_dir, "{:04d}".format(t)))
         plt.close()
-

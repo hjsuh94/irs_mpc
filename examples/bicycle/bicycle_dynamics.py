@@ -3,13 +3,16 @@ import pydrake.symbolic as ps
 import torch
 import time
 
-class CarDynamicsExplicit():
-    def __init__(self, dt):
+from irs_lqr.dynamical_system import DynamicalSystem
+
+class BicycleDynamics(DynamicalSystem):
+    def __init__(self, h):
+        super().__init__()
         """
         x = [x pos, y pos, heading, speed, steering_angle]
         u = [acceleration, steering_velocity]
         """
-        self.dt = dt
+        self.h = h
         self.dim_x = 5
         self.dim_u = 2
 
@@ -18,8 +21,7 @@ class CarDynamicsExplicit():
         self.u_sym = np.array([ps.Variable("u_{}".format(i)) for i in range(self.dim_u)])
         self.f_sym = self.dynamics_sym(self.x_sym, self.u_sym)
 
-        self.jacobian_x_sym = ps.Jacobian(self.f_sym, self.x_sym)
-        self.jacobian_u_sym = ps.Jacobian(self.f_sym, self.u_sym)
+        self.jacobian_xu_sym = ps.Jacobian(self.f_sym, np.hstack((self.x_sym, self.u_sym)))
         
     def dynamics_sym(self, x, u):
         """
@@ -38,11 +40,11 @@ class CarDynamicsExplicit():
             u[0],
             u[1]
         ])
-        x_new = x + self.dt * dxdt
+        x_new = x + self.h * dxdt
         return x_new
 
 
-    def dynamics_np(self, x, u):
+    def dynamics(self, x, u):
         """
         Numeric expression for dynamics.
         x (np.array, dim: n): state
@@ -58,10 +60,10 @@ class CarDynamicsExplicit():
             u[0],
             u[1]
         ])
-        x_new = x + self.dt * dxdt
+        x_new = x + self.h * dxdt
         return x_new
 
-    def dynamics_batch_np(self, x, u):
+    def dynamics_batch(self, x, u):
         """
         Batch dynamics. Uses pytorch for 
         -args:
@@ -80,7 +82,7 @@ class CarDynamicsExplicit():
             u[:,0],
             u[:,1]
         )).transpose()
-        x_new = x + self.dt * dxdt
+        x_new = x + self.h * dxdt
         return x_new
 
 
@@ -107,56 +109,24 @@ class CarDynamicsExplicit():
             u[:,0],
             u[:,1]
         )).T
-        x_new = x + self.dt * dxdt
+        x_new = x + self.h * dxdt
         return x_new
 
-
-        raise NotImplementedError        
-
-    def jacobian_x(self, x, u):
+    def jacobian_xu(self, x, u):
         """
         Recoever linearized dynamics dfdx as a function of x, u
         """
         env = {self.x_sym[i]: x[i] for i in range(self.dim_x)}
         env.update({self.u_sym[i]: u[i] for i in range(self.dim_u)})
-        f_x = ps.Evaluate(self.jacobian_x_sym, env)
+        f_x = ps.Evaluate(self.jacobian_xu_sym, env)
         return f_x 
 
-    def jacobian_u(self, x, u):
+    def jacobian_xu_batch(self, x, u):
         """
-        Recoever linearized dynamics dfdu as a function of x, u
-        """
-        env = {self.x_sym[i]: x[i] for i in range(self.dim_x)}
-        env.update({self.u_sym[i]: u[i] for i in range(self.dim_u)})
-        f_u = ps.Evaluate(self.jacobian_u_sym, env)
-        return f_u 
-
-
-"""
-dynamics = CarDynamicsExplicit(0.1)
-
-sample_size = 10000000
-
-time_now = time.time()
-x_batch = np.zeros((sample_size, 5))
-u_batch = np.zeros((sample_size, 2))
-x_noise = np.random.normal(0.0, 1.0, size=(sample_size,5))
-x_noise += x_batch
-u_noise = np.random.normal(0.0, 1.0, size=(sample_size,2))
-u_noise += u_batch
-
-print(dynamics.dynamics_batch_np(x_noise, u_noise).shape)
-print("numpy: " + str(time.time() - time_now))
-
-time_now = time.time()
-x_batch = torch.zeros((sample_size, 5))
-u_batch = torch.zeros((sample_size, 2))
-x_noise = torch.normal(0.0, 1.0, size=(sample_size,5))
-x_noise += x_batch
-u_noise = torch.normal(0.0, 1.0, size=(sample_size,2))
-u_noise += u_batch
-
-print(dynamics.dynamics_batch_torch(x_noise, u_noise).shape)
-print("torch: " + str(time.time() - time_now))
-"""
-
+        Recoever linearized dynamics dfd(xu) as a function of x, u
+        """ 
+        dxdu_batch = np.zeros((
+            x.shape[0], x.shape[1], x.shape[1] + u.shape[1]))
+        for i in range(x.shape[0]):
+            dxdu_batch[i] = self.jacobian_xu(x[i], u[i])
+        return dxdu_batch        
