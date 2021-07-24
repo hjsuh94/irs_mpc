@@ -1,2 +1,2 @@
 # iRS-LQR
-Iterative Randomized Smoothing LQR
+iterative Randomized Smoothing LQR
