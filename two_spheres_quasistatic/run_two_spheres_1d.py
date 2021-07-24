@@ -95,7 +95,7 @@ x_trj_d = np.tile(xd, (T + 1, 1))
 
 sqp_ls_q = SqpLsQuasistatic(
     q_dynamics=q_dynamics,
-    std_u_initial=np.ones(dim_u) * 0.1,
+    std_u_initial=np.ones(dim_u) * 0.3,
     T=T,
     Q=np.diag([10, 10]),
     R=np.diag([1]),

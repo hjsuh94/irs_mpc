@@ -67,7 +67,6 @@ def solve_tvlqr(At, Bt, ct, Q, Qd, R, x0, x_trj_d, xbound, ubound, solver,
 
     # 3. Loop over to add dynamics constraints and costs.
     indices_u_into_x = kwargs['indices_u_into_x']
-    Qu = np.diag(Q.diagonal()[indices_u_into_x])
     for t in range(timesteps):
         # Add affine dynamics constraint.
         prog.AddLinearEqualityConstraint(
@@ -78,8 +77,6 @@ def solve_tvlqr(At, Bt, ct, Q, Qd, R, x0, x_trj_d, xbound, ubound, solver,
         prog.AddBoundingBoxConstraint(ubound[0, t], ubound[1, t], ut[t])
 
         # Add cost.
-        # prog.AddQuadraticErrorCost(Qu, x_trj_d[t, indices_u_into_x],
-        #                            xt[t, indices_u_into_x])
         prog.AddQuadraticErrorCost(Q, x_trj_d[t], xt[t])
         if t == 0:
             du = ut[t] - xt[t, indices_u_into_x]

@@ -1,5 +1,5 @@
 import os
-import timeit
+
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -19,7 +19,7 @@ object_sdf_path = os.path.join(models_dir, "sphere_yz_rotation_r_0.25m.sdf")
 model_directive_path = os.path.join(models_dir, "planar_hand.yml")
 
 h = 0.1
-T = int(round(2 / h))  # num of time steps to simulate forward.
+T = int(round(3 / h))  # num of time steps to simulate forward.
 duration = T * h
 quasistatic_sim_params = QuasistaticSimParameters(
     gravity=np.array([0, 0, -10.]),
@@ -89,8 +89,6 @@ q_dict_traj = [q0_dict]
 for i in range(T):
     # print('--------------------------------')
     t = h * i
-    # q_cmd_dict = {idx_a_l: q_a_traj_dict_str[robot_l_name].value(t + h).ravel(),
-    #               idx_a_r: q_a_traj_dict_str[robot_r_name].value(t + h).ravel()}
     q_cmd_dict = {idx_a_l: q_robot_l_traj.value(t + h).ravel(),
                   idx_a_r: q_robot_r_traj.value(t + h).ravel()}
     u = q_dynamics.get_u_from_q_cmd_dict(q_cmd_dict)
@@ -119,23 +117,28 @@ q_sim.animate_system_trajectory(h, q_dict_traj)
 dx_bounds = np.array([-np.ones(dim_x) * 1, np.ones(dim_x) * 1])
 du_bounds = np.array([-np.ones(dim_u) * 0.5 * h, np.ones(dim_u) * 0.5 * h])
 
-xd_dict = {idx_u: q_u0 + np.array([-0.15, 0, 0]),
+xd_dict = {idx_u: q_u0 + np.array([0.30, 0, 0]),
            idx_a_l: qa_l_knots[0],
            idx_a_r: qa_r_knots[0]}
 xd = q_dynamics.get_x_from_q_dict(xd_dict)
 x_trj_d = np.tile(xd, (T + 1, 1))
 
-Q_dict = {idx_u: np.array([10, 10., 10]),
-          idx_a_l: np.array([1, 1.]),
-          idx_a_r: np.array([1, 1.])}
-Q = q_dynamics.get_Q_from_Q_dict(Q_dict)
+Q_dict = {idx_u: np.array([10, 0.001, 0.001]),
+          idx_a_l: np.array([0.001, 0.001]),
+          idx_a_r: np.array([0.001, 0.001])}
+
+Qd_dict = {model: Q_i * 10 for model, Q_i in Q_dict.items()}
+
+R_dict = {idx_a_l: np.array([1, 1]),
+          idx_a_r: np.array([1, 1])}
 
 sqp_ls_q = SqpLsQuasistatic(
     q_dynamics=q_dynamics,
-    std_u_initial=np.ones(dim_u) * 0.1,
+    std_u_initial=np.ones(dim_u) * 0.3,
     T=T,
-    Q=Q,
-    R=np.eye(dim_u) * 5,
+    Q_dict=Q_dict,
+    Qd_dict=Qd_dict,
+    R_dict=R_dict,
     x_trj_d=x_trj_d,
     dx_bounds=dx_bounds,
     du_bounds=du_bounds,
@@ -143,19 +146,28 @@ sqp_ls_q = SqpLsQuasistatic(
     u_trj_0=u_traj_0)
 
 #%%
-sqp_ls_q.iterate(1e-6, 10)
+sqp_ls_q.iterate(1e-6, 20)
 
 #%%
-q_dynamics.publish_trajectory(sqp_ls_q.x_trj_best)
+x_traj_to_publish = sqp_ls_q.x_trj_best
+q_dynamics.publish_trajectory(x_traj_to_publish)
 print('x_goal:', xd)
-print('x_final:', sqp_ls_q.x_trj_best[-1])
-assert False
-#%%
+print('x_final:', x_traj_to_publish[-1])
 
-q_dict_traj = [q0_dict]
-x = x0
-for u in sqp_ls_q.u_trj_best:
-    x = q_dynamics.dynamics(x, u, mode='qp_mp', requires_grad=False)
-    q_dict_traj.append(q_dynamics.get_q_dict_from_x(x))
 
-q_sim.animate_system_trajectory(h, q_dict_traj)
+#%% plot different components of the cost for all iterations.
+plt.figure()
+plt.plot(sqp_ls_q.cost_all_list, label='all')
+plt.plot(sqp_ls_q.cost_Qa_list, label='Qa')
+plt.plot(sqp_ls_q.cost_Qu_list, label='Qu')
+plt.plot(sqp_ls_q.cost_Qa_final_list, label='Qa_f')
+plt.plot(sqp_ls_q.cost_Qu_final_list, label='Qu_f')
+plt.plot(sqp_ls_q.cost_R_list, label='R')
+
+plt.title('Trajectory cost')
+plt.xlabel('Iterations')
+# plt.yscale('log')
+plt.legend()
+plt.grid(True)
+plt.show()
+

@@ -71,6 +71,15 @@ class QuasistaticDynamics:
             Q[idx, idx] = Q_dict[model]
         return Q
 
+    def get_R_from_R_dict(self,
+                          R_dict: Dict[ModelInstanceIndex, np.ndarray]):
+        R = np.eye(self.dim_u)
+        i_start = 0
+        for model in self.q_sim.models_actuated:
+            n_v_i = self.q_sim.n_v_dict[model]
+            R[i_start: i_start + n_v_i, i_start: i_start + n_v_i] = \
+                R_dict[model]
+        return R
 
     def dynamics(self, x: np.ndarray, u: np.ndarray,
                  mode: str = 'qp_mp', requires_grad: bool = False):
