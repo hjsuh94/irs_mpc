@@ -72,10 +72,10 @@ class IrsLqr:
         Check if the system is valid. Otherwise, throw exception.
         TODO(terry-suh): we can add more error checking later.        
         """
-        if (system.dim_x == 0):
+        if system.dim_x == 0:
             raise RuntimeError(
                 "System has zero states. Did you forget to set dim_x?")
-        elif (system.dim_u == 0):
+        elif system.dim_u == 0:
             raise RuntimeError(
                 "System has zero inputs. Did you forget to set dim_u?")
         try:
@@ -89,13 +89,13 @@ class IrsLqr:
         Check if the parameter is valid. Otherwise, throw exception.
         TODO(terry-suh): we can add more error checking later.
         """
-        if (params.Q.shape != (system.dim_x, system.dim_x)):
+        if params.Q.shape != (system.dim_x, system.dim_x):
             raise RuntimeError(
                 "Q matrix must be diagonal with dim_x x dim_x.")
-        if (params.Qd.shape != (system.dim_x, system.dim_x)):
+        if params.Qd.shape != (system.dim_x, system.dim_x):
             raise RuntimeError(
                 "Qd matrix must be diagonal with dim_x x dim_x.")
-        if (params.R.shape != (system.dim_u, system.dim_u)):
+        if params.R.shape != (system.dim_u, system.dim_u):
             raise RuntimeError(
                 "R matrix must be diagonal with dim_u x dim_u.")                
 
