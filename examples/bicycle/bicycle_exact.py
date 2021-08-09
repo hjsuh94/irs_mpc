@@ -47,6 +47,6 @@ for i in range(num_iters):
     x_trj = solver.x_trj_lst[i]
     jm = colormap(i/ num_iters)
     plt.plot(x_trj[:,0], x_trj[:,1], color=(
-        jm[0], jm[1], jm[2], i / num_iters))    
+        jm[0], jm[1], jm[2], (i+1)/ num_iters))    
 
 plt.show()

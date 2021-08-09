@@ -18,7 +18,7 @@ params.Q = np.diag([5, 5, 3, 0.1, 0.1])
 params.Qd = np.diag([50, 50, 30, 1, 1])
 params.R = np.diag([1, 0.1])
 params.x0 = np.array([0, 0, 0, 0, 0])
-xd = np.array([-3.0, -1.0, -np.pi/2, 0, 0])
+xd = np.array([3.0, 1.0, np.pi/2, 0, 0])
 params.xd_trj = np.tile(xd, (timesteps+1,1))
 params.xbound = [
     -np.array([1e4, 1e4, 1e4, 1e4, np.pi/4]),
@@ -58,6 +58,6 @@ num_iters = len(solver.x_trj_lst)
 for i in range(num_iters):
     x_trj = solver.x_trj_lst[i]
     jm = colormap(i/ num_iters)
-    plt.plot(x_trj[:,0], x_trj[:,1], color=(jm[0], jm[1], jm[2], i / num_iters))    
+    plt.plot(x_trj[:,0], x_trj[:,1], color=(jm[0], jm[1], jm[2], (i+1) / num_iters))    
 
 plt.show()

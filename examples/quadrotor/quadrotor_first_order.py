@@ -2,7 +2,7 @@ import numpy as np
 import time
 
 from quadrotor_dynamics import QuadrotorDynamics
-from irs_lqr.all import IrsLqrParameters, IrsLqrZeroOrder
+from irs_lqr.all import IrsLqrParameters, IrsLqrFirstOrder
 
 import matplotlib.pyplot as plt 
 from matplotlib import cm
@@ -52,7 +52,7 @@ def sampling(xbar, ubar, iter):
     return dx, du
 
 # 4. Solve.
-solver = IrsLqrZeroOrder(quadrotor, params, sampling)
+solver = IrsLqrFirstOrder(quadrotor, params, sampling)
 
 time_now = time.time()
 solver.iterate(3)
