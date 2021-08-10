@@ -1,4 +1,6 @@
 import os
+import cProfile
+import time
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -7,35 +9,26 @@ from pydrake.all import PiecewisePolynomial, ModelInstanceIndex
 
 from quasistatic_simulator.core.quasistatic_simulator import (
     QuasistaticSimulator, QuasistaticSimParameters)
-from quasistatic_simulator.examples.model_paths import models_dir
+from quasistatic_simulator.core.quasistatic_system import (
+    cpp_params_from_py_params)
 from quasistatic_simulator.examples.setup_simulation_diagram import (
     create_dict_keyed_by_model_instance_index)
+from quasistatic_simulator_py import (QuasistaticSimulatorCpp,
+    QuasistaticSimParametersCpp)
 
-from two_spheres_quasistatic.quasistatic_dynamics import QuasistaticDynamics
+from quasistatic.quasistatic_dynamics import QuasistaticDynamics
 from sqp_ls_quasistatic import SqpLsQuasistatic
 
-#%% sim setup
-object_sdf_path = os.path.join(models_dir, "sphere_yz_rotation_r_0.25m.sdf")
-model_directive_path = os.path.join(models_dir, "planar_hand.yml")
+from planar_hand_setup import *
 
-h = 0.1
+#%% sim setup
 T = int(round(3 / h))  # num of time steps to simulate forward.
 duration = T * h
-quasistatic_sim_params = QuasistaticSimParameters(
-    gravity=np.array([0, 0, -10.]),
+sim_params = QuasistaticSimParameters(
+    gravity=gravity,
     nd_per_contact=2,
-    contact_detection_tolerance=0.5,
+    contact_detection_tolerance=contact_detection_tolerance,
     is_quasi_dynamic=True)
-
-# robots.
-Kp = np.array([50, 25], dtype=float)
-robot_l_name = "arm_left"
-robot_r_name = "arm_right"
-robot_stiffness_dict = {robot_l_name: Kp, robot_r_name: Kp}
-
-# object
-object_name = "sphere"
-object_sdf_dict = {object_name: object_sdf_path}
 
 # trajectory and initial conditions.
 nq_a = 2
@@ -59,23 +52,33 @@ q0_dict_str = {object_name: q_u0,
                robot_r_name: qa_r_knots[0]}
 
 
-q_sim = QuasistaticSimulator(
+q_sim_py = QuasistaticSimulator(
     model_directive_path=model_directive_path,
     robot_stiffness_dict=robot_stiffness_dict,
     object_sdf_paths=object_sdf_dict,
-    sim_params=quasistatic_sim_params,
+    sim_params=sim_params,
     internal_vis=True)
 
-name_to_model_instance_dict = q_sim.get_robot_name_to_model_instance_dict()
-idx_a_l = name_to_model_instance_dict[robot_l_name]
-idx_a_r = name_to_model_instance_dict[robot_r_name]
-idx_u = name_to_model_instance_dict[object_name]
+# construct C++ backend.
+sim_params_cpp = cpp_params_from_py_params(sim_params)
+sim_params_cpp.gradient_lstsq_tolerance = gradient_lstsq_tolerance
+q_sim_cpp = QuasistaticSimulatorCpp(
+    model_directive_path=model_directive_path,
+    robot_stiffness_str=robot_stiffness_dict,
+    object_sdf_paths=object_sdf_dict,
+    sim_params=sim_params_cpp)
+
+plant = q_sim_cpp.get_plant()
+q_sim_py.get_robot_name_to_model_instance_dict()
+idx_a_l = plant.GetModelInstanceByName(robot_l_name)
+idx_a_r = plant.GetModelInstanceByName(robot_r_name)
+idx_u = plant.GetModelInstanceByName(object_name)
 
 q0_dict = create_dict_keyed_by_model_instance_index(
-    q_sim.plant, q_dict_str=q0_dict_str)
+    q_sim_py.plant, q_dict_str=q0_dict_str)
 
 #%%
-q_dynamics = QuasistaticDynamics(h=h, q_sim=q_sim)
+q_dynamics = QuasistaticDynamics(h=h, q_sim_py=q_sim_py, q_sim=q_sim_cpp)
 dim_x = q_dynamics.dim_x
 dim_u = q_dynamics.dim_u
 
@@ -86,19 +89,19 @@ u_traj_0 = np.zeros((T, dim_u))
 x = np.copy(x0)
 
 q_dict_traj = [q0_dict]
-for i in range(T):
+for i in range(0):
     # print('--------------------------------')
     t = h * i
     q_cmd_dict = {idx_a_l: q_robot_l_traj.value(t + h).ravel(),
                   idx_a_r: q_robot_r_traj.value(t + h).ravel()}
     u = q_dynamics.get_u_from_q_cmd_dict(q_cmd_dict)
-    x = q_dynamics.dynamics(x, u, mode='qp_mp', requires_grad=True)
-    _, _, Dq_nextDq, Dq_nextDqa_cmd = \
-        q_dynamics.q_sim.get_dynamics_derivatives()
+    x = q_dynamics.dynamics_py(x, u, mode='qp_mp', requires_grad=True)
+    Dq_nextDq = q_dynamics.q_sim_py.get_Dq_nextDq()
+    Dq_nextDqa_cmd = q_dynamics.q_sim_py.get_Dq_nextDqa_cmd()
 
-    q_dynamics.dynamics(x, u, mode='qp_cvx', requires_grad=True)
-    _, _, Dq_nextDq_cvx, Dq_nextDqa_cmd_cvx = \
-        q_dynamics.q_sim.get_dynamics_derivatives()
+    q_dynamics.dynamics_py(x, u, mode='qp_cvx', requires_grad=True)
+    Dq_nextDq_cvx = q_dynamics.q_sim_py.get_Dq_nextDq()
+    Dq_nextDqa_cmd_cvx = q_dynamics.q_sim_py.get_Dq_nextDqa_cmd()
 
     print('t={},'.format(t), 'x:', x, 'u:', u)
     print('Dq_nextDq\n', Dq_nextDq)
@@ -110,7 +113,7 @@ for i in range(T):
     q_dict_traj.append(q_dynamics.get_q_dict_from_x(x))
 
 
-q_sim.animate_system_trajectory(h, q_dict_traj)
+q_sim_py.animate_system_trajectory(h, q_dict_traj)
 
 
 #%%
@@ -145,11 +148,31 @@ sqp_ls_q = SqpLsQuasistatic(
     x0=x0,
     u_trj_0=u_traj_0)
 
-#%%
-sqp_ls_q.iterate(1e-6, 20)
+#%% test multi vs single threaded execution
+# x_trj = sqp_ls_q.x_trj
+# u_trj = sqp_ls_q.u_trj
+#
+# t1 = time.time()
+# At2, Bt2, ct2 = sqp_ls_q.get_TV_matrices_batch(x_trj, u_trj)
+# t2 = time.time()
+# print('parallel time', t2 - t1)
+# time.time()
+#
+# t1 = time.time()
+# At, Bt, ct = sqp_ls_q.get_TV_matrices(x_trj, u_trj)
+# At1, Bt1, ct1 = sqp_ls_q.get_TV_matrices(x_trj, u_trj)
+# t2 = time.time()
+# print('single-thread time', t2 - t1)
 
 #%%
-x_traj_to_publish = sqp_ls_q.x_trj_best
+sqp_ls_q.iterate(1e-6, 20)
+# cProfile.runctx('sqp_ls_q.iterate(1e-6, 10)',
+#                 globals=globals(), locals=locals(),
+#                 filename='contact_first_order_stats')
+
+
+#%%
+x_traj_to_publish = sqp_ls_q.x_trj_list[-1]
 q_dynamics.publish_trajectory(x_traj_to_publish)
 print('x_goal:', xd)
 print('x_final:', x_traj_to_publish[-1])
@@ -170,4 +193,6 @@ plt.xlabel('Iterations')
 plt.legend()
 plt.grid(True)
 plt.show()
+
+#%%
 

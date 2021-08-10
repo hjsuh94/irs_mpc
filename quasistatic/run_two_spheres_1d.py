@@ -9,13 +9,12 @@ from quasistatic_simulator.core.quasistatic_simulator import (
     QuasistaticSimulator, QuasistaticSimParameters)
 from quasistatic_simulator.examples.model_paths import models_dir
 
-from two_spheres_quasistatic.quasistatic_dynamics import QuasistaticDynamics
+from quasistatic.quasistatic_dynamics import QuasistaticDynamics
 from sqp_ls_quasistatic import SqpLsQuasistatic
 
 #%% sim setup
-object_sdf_path = os.path.join(models_dir, "sphere_yz.sdf")
-model_directive_path = os.path.join(models_dir,
-                                    "sphere_yz_actuated.yml")
+object_sdf_path = os.path.join(models_dir, "sphere_y.sdf")
+model_directive_path = os.path.join(models_dir, "sphere_y_actuated.yml")
 
 h = 0.1
 T = int(round(2 / h))  # num of time steps to simulate forward.
@@ -27,8 +26,8 @@ quasistatic_sim_params = QuasistaticSimParameters(
     is_quasi_dynamic=True)
 
 # robot
-Kp = np.array([1000, 1000], dtype=float)
-robot_name = "sphere_yz_actuated"
+Kp = np.array([500], dtype=float)
+robot_name = "sphere_y_actuated"
 robot_stiffness_dict = {robot_name: Kp}
 
 # object
@@ -36,25 +35,21 @@ object_name = "sphere_y"
 object_sdf_dict = {object_name: object_sdf_path}
 
 # trajectory and initial conditions.
-nq_a = 2
+nq_a = 1
 qa_knots = np.zeros((3, nq_a))
-qa_knots[0] = [0, 0.0]
-qa_knots[1] = [0.7, 0.0]
+qa_knots[0] = [0]
+qa_knots[1] = [0.5]
 qa_knots[2] = qa_knots[1]
-qa_traj = PiecewisePolynomial.FirstOrderHold([0, duration * 0.8, duration],
+qa_traj = PiecewisePolynomial.FirstOrderHold([0, duration * 0.7, duration],
                                              qa_knots.T)
-q_a_traj_dict_str = {robot_name: qa_traj}
-
-qu0 = np.array([0.5, 0.1])
-q0_dict_str = {object_name: qu0,
-               robot_name: qa_knots[0]}
+qu0 = np.array([0.5])
 
 q_sim = QuasistaticSimulator(
     model_directive_path=model_directive_path,
     robot_stiffness_dict=robot_stiffness_dict,
     object_sdf_paths=object_sdf_dict,
     sim_params=quasistatic_sim_params,
-    internal_vis=True)
+    internal_vis=False)
 
 name_to_model_instance_dict = q_sim.get_robot_name_to_model_instance_dict()
 idx_a = name_to_model_instance_dict[robot_name]
@@ -71,10 +66,8 @@ x0 = q_dynamics.get_x_from_q_dict(q0_dict)
 u_traj_0 = np.zeros((T, nq_a))
 
 x = np.copy(x0)
-
-q_dict_traj = [q0_dict]
 for i in range(T):
-    # print('--------------------------------')
+    print('--------------------------------')
     t = h * i
     q_cmd_dict = {idx_a: qa_traj.value(t + h).ravel()}
     u = q_dynamics.get_u_from_q_cmd_dict(q_cmd_dict)
@@ -93,24 +86,19 @@ for i in range(T):
     print('cvx\n', Dq_nextDqa_cmd_cvx)
     u_traj_0[i] = u
 
-    q_dict_traj.append(q_dynamics.get_q_dict_from_x(x))
-
-
-q_sim.animate_system_trajectory(h, q_dict_traj)
 
 #%%
 dx_bounds = np.array([-np.ones(dim_x) * 1, np.ones(dim_x) * 1])
-du_bounds = np.array([-np.ones(dim_u) * 0.5 * h, np.ones(dim_u) * 0.5 * h])
-xd_dict = {idx_a: np.array([0.8, 0]), idx_u: np.array([1.0, 0.3])}
-xd = q_dynamics.get_x_from_q_dict(xd_dict)
+du_bounds = np.array([-np.ones(dim_u) * 0.2, np.ones(dim_u) * 0.2])
+xd = np.array([0.2, 2.0])
 x_trj_d = np.tile(xd, (T + 1, 1))
 
 sqp_ls_q = SqpLsQuasistatic(
     q_dynamics=q_dynamics,
-    std_u_initial=np.ones(dim_u) * 0.1,
+    std_u_initial=np.ones(dim_u) * 0.3,
     T=T,
-    Q=np.diag([1, 10, 1, 10]),
-    R=np.diag([5, 5]),
+    Q=np.diag([10, 10]),
+    R=np.diag([1]),
     x_trj_d=x_trj_d,
     dx_bounds=dx_bounds,
     du_bounds=du_bounds,
@@ -121,17 +109,29 @@ sqp_ls_q = SqpLsQuasistatic(
 #%%
 sqp_ls_q.iterate(1e-6, 10)
 
-#%%
-q_dynamics.publish_trajectory(sqp_ls_q.x_trj_best)
-print('x_goal:', xd)
-print('x_final:', sqp_ls_q.x_trj_best[-1])
-assert False
-#%%
 
-q_dict_traj = [q0_dict]
-x = x0
-for u in sqp_ls_q.u_trj_best:
-    x = q_dynamics.dynamics(x, u, mode='qp_mp', requires_grad=False)
-    q_dict_traj.append(q_dynamics.get_q_dict_from_x(x))
+#%% first order estimate of B.
+x_nominal = np.array([0, 0.5])
+u_nominal = np.array([0.2])
 
-q_sim.animate_system_trajectory(h, q_dict_traj)
+Ahat1, Bhat1 = sqp_ls_q.calc_AB_first_order(
+    x_nominal=x_nominal,
+    u_nominal=u_nominal,
+    n_samples=100,
+    std=0.05)
+print('Bhat1\n', Bhat1)
+
+
+#%% zero-th order estimate of B.
+Bhat0, du = sqp_ls_q.calc_AB_zero_order(x_nominal=x_nominal,
+                                        u_nominal=u_nominal, n_samples=100,
+                                        std=0.05)
+
+print('Bhat0\n', Bhat0)
+
+plt.figure()
+plt.scatter(x_nominal, [0, 0])
+plt.scatter(u_nominal + du.squeeze(), np.zeros(len(du)))
+plt.axvline(x_nominal[1] - 0.2)  # contact boundary
+plt.grid(True)
+plt.show()

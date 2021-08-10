@@ -4,8 +4,10 @@ import numpy as np
 
 from pydrake.all import ModelInstanceIndex
 
-from two_spheres_quasistatic.quasistatic_dynamics import QuasistaticDynamics
+from quasistatic.quasistatic_dynamics import QuasistaticDynamics
 from tv_lqr import solve_tvlqr, get_solver
+
+from zmq_parallel_cmp.array_io import *
 
 
 class SqpLsQuasistatic:
@@ -70,6 +72,21 @@ class SqpLsQuasistatic:
         # solver
         self.solver = get_solver('gurobi')
 
+        # parallelization.
+        context = zmq.Context()
+
+        # Socket to send messages on
+        self.sender = context.socket(zmq.PUSH)
+        self.sender.bind("tcp://*:5557")
+
+        # Socket to receive messages on
+        self.receiver = context.socket(zmq.PULL)
+        self.receiver.bind("tcp://*:5558")
+
+        print("Press Enter when the workers are ready: ")
+        input()
+        print("Sending tasks to workers...")
+
     def rollout(self, x0: np.ndarray, u_trj: np.ndarray):
         T = u_trj.shape[0]
         assert T == self.T
@@ -103,10 +120,10 @@ class SqpLsQuasistatic:
         x_dict = self.q_dynamics.get_q_dict_from_x(x_trj[-1])
         xd_dict = self.q_dynamics.get_q_dict_from_x(self.x_trj_d[-1])
         cost_Qu_final = self.calc_Q_cost(
-            models_list=self.q_dynamics.q_sim.models_unactuated,
+            models_list=self.q_dynamics.models_unactuated,
             x_dict=x_dict, xd_dict=xd_dict, Q_dict=self.Qd_dict)
         cost_Qa_final = self.calc_Q_cost(
-            models_list=self.q_dynamics.q_sim.models_actuated,
+            models_list=self.q_dynamics.models_actuated,
             x_dict=x_dict, xd_dict=xd_dict, Q_dict=self.Qd_dict)
 
         # Q and R costs.
@@ -118,10 +135,10 @@ class SqpLsQuasistatic:
             xd_dict = self.q_dynamics.get_q_dict_from_x(self.x_trj_d[t])
             # Q cost.
             cost_Qu += self.calc_Q_cost(
-                models_list=self.q_dynamics.q_sim.models_unactuated,
+                models_list=self.q_dynamics.models_unactuated,
                 x_dict=x_dict, xd_dict=xd_dict, Q_dict=self.Q_dict)
             cost_Qa += self.calc_Q_cost(
-                models_list=self.q_dynamics.q_sim.models_actuated,
+                models_list=self.q_dynamics.models_actuated,
                 x_dict=x_dict, xd_dict=xd_dict, Q_dict=self.Q_dict)
 
             # R cost.
@@ -154,26 +171,8 @@ class SqpLsQuasistatic:
         a = self.current_iter ** 0.8
         return self.std_u_initial / a
 
-    def calc_AB_first_order(self, x_nominal: np.ndarray, u_nominal: np.ndarray,
-                           n_samples: int, std: float):
-        du = np.random.normal(0, std, size=[n_samples, self.dim_u])
-        Ahat_list = np.zeros((n_samples, self.dim_x, self.dim_x))
-        Bhat_list = np.zeros((n_samples, self.dim_x, self.dim_u))
-
-        for i in range(n_samples):
-            self.q_dynamics.dynamics(x_nominal, u_nominal + du[i],
-                                     mode='qp_mp',
-                                     requires_grad=True)
-            _, _, Dq_nextDq, Dq_nextDqa_cmd = \
-                self.q_dynamics.q_sim.get_dynamics_derivatives()
-            Ahat_list[i] = Dq_nextDq
-            Bhat_list[i] = Dq_nextDqa_cmd
-
-        return np.mean(Ahat_list, axis=0), np.mean(Bhat_list, axis=0)
-
     def calc_AB_exact(self, x_nominal: np.ndarray, u_nominal: np.ndarray):
         self.q_dynamics.dynamics(x_nominal, u_nominal,
-                                 mode='qp_mp',
                                  requires_grad=True)
         _, _, Ahat, Bhat = self.q_dynamics.q_sim.get_dynamics_derivatives()
         return Ahat, Bhat
@@ -193,12 +192,12 @@ class SqpLsQuasistatic:
         std_u = self.calc_current_std()
 
         for t in range(T):
-            Ahat, Bhat = self.calc_AB_first_order(
+            Ahat, Bhat = self.q_dynamics.calc_AB_first_order(
                 x_nominal=x_trj[t],
                 u_nominal=u_trj[t],
                 n_samples=100,
                 std=std_u)
-            #
+
             # Ahat, Bhat = self.calc_AB_exact(
             #     x_nominal=x_trj[t],
             #     u_nominal=u_trj[t])
@@ -210,6 +209,41 @@ class SqpLsQuasistatic:
 
         return At, Bt, ct
 
+    def get_TV_matrices_batch(self, x_trj, u_trj):
+        """
+        Get time varying linearized dynamics given a nominal trajectory.
+        - args:
+            x_trj (np.array, shape (T + 1) x n)
+            u_trj (np.array, shape T x m)
+        """
+        T = u_trj.shape[0]
+        assert self.T == T
+        At = np.zeros((T, self.dim_x, self.dim_x))
+        Bt = np.zeros((T, self.dim_x, self.dim_u))
+        ct = np.zeros((T, self.dim_x))
+        std_u = self.calc_current_std()
+
+        # send T tasks.
+        for t in range(T):
+            x_u = np.hstack([x_trj[t], u_trj[t]])
+            send_array(
+                self.sender, x_u, t=[t], n_samples=100, std=std_u.tolist())
+
+        # receive T tasks.
+        for _ in range(T):
+            ABhat, t_list, _, _ = recv_array(self.receiver)
+            assert len(t_list) == 1
+            t = t_list[0]
+            At[t] = ABhat[:, :self.dim_x]
+            Bt[t] = ABhat[:, self.dim_x:]
+
+        # compute ct
+        for t in range(T):
+            x_next_nominal = self.q_dynamics.dynamics(x_trj[t], u_trj[t])
+            ct[t] = x_next_nominal - At[t].dot(x_trj[t]) - Bt[t].dot(u_trj[t])
+
+        return At, Bt, ct
+
     def local_descent(self, x_trj, u_trj):
         """
         Forward pass using a TV-LQR controller on the linearized dynamics.
@@ -217,7 +251,7 @@ class SqpLsQuasistatic:
             x_trj (np.array, shape (T + 1) x n): nominal state trajectory.
             u_trj (np.array, shape T x m) : nominal input trajectory
         """
-        At, Bt, ct = self.get_TV_matrices(x_trj, u_trj)
+        At, Bt, ct = self.get_TV_matrices_batch(x_trj, u_trj)
         x_trj_new = np.zeros(x_trj.shape)
         x_trj_new[0, :] = x_trj[0, :]
         u_trj_new = np.zeros(u_trj.shape)
