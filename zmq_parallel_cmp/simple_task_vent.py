@@ -2,7 +2,7 @@
 # Binds PUSH socket to tcp://localhost:5557
 # Sends batch of tasks to workers via that socket
 #
-# Author: Lev Givon <lev(at)columbia(dot)edu>
+# Original Author: Lev Givon <lev(at)columbia(dot)edu>
 
 import sys
 import random
@@ -31,11 +31,13 @@ n_tasks = 100
 # Send 100 tasks
 for task_nbr in range(n_tasks):
     A = np.ones(random.randint(1, 10000))
-    send_array(sender, A, t=[0, 1], n_samples=100, std=0.1)
+    send_array(sender, A, t=[0, 1], n_samples=100, std=[0.1])
     print(task_nbr, A.sum())
 
 
 # Start our clock now
+# Each request sleeps for 100ms. The total elapsed time should be close to
+#  (10s / num_workers).
 tstart = time.time()
 
 # Process 100 confirmations

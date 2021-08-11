@@ -4,17 +4,16 @@
 # Connects PUSH socket to tcp://localhost:5558
 # Sends results to sink via that socket
 #
-# Author: Lev Givon <lev(at)columbia(dot)edu>
+# Original Author: Lev Givon <lev(at)columbia(dot)edu>
 
-import threading
-from multiprocessing import Process
+import multiprocessing
 import sys
 import time
 
 from array_io import *
 
 
-def f_worker():
+def f_worker_simple():
     context = zmq.Context()
 
     # Socket to receive messages on
@@ -25,29 +24,35 @@ def f_worker():
     sender = context.socket(zmq.PUSH)
     sender.connect("tcp://localhost:5558")
 
-    thread_id = threading.current_thread().ident
-    print("worker", thread_id, "ready.")
+    pid = multiprocessing.current_process().pid
+    print("worker", pid, "ready.")
 
     # Process tasks forever
     i_tasks = 0
     while True:
         A, t, n_samples, std = recv_array(receiver)
+
+        # Pretending to do some work.
         time.sleep(n_samples / 1000)
         # Send results to sink
         send_array(sender, A * 2, t=t, n_samples=n_samples, std=std)
 
         i_tasks += 1
         if i_tasks % 10 == 0:
-            print(thread_id, "has processed", i_tasks, "tasks.")
+            print(pid, "has processed", i_tasks, "tasks.")
 
 
 if __name__ == "__main__":
     p_list = []
+    try:
+        for _ in range(5):
+            p = multiprocessing.Process(target=f_worker_simple)
+            p_list.append(p)
+            p.start()
+        time.sleep(100000)
+    except KeyboardInterrupt:
+        for p in p_list:
+            p.terminate()
+            p.join()
 
-    for _ in range(5):
-        p = Process(target=f_worker)
-        p_list.append(p)
-        p.start()
 
-    for p in p_list:
-        p.join()
