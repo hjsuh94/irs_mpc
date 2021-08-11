@@ -2,7 +2,7 @@ import numpy as np
 import time
 
 from quadrotor_dynamics import QuadrotorDynamics
-from irs_lqr.all import IrsLqrParameters, IrsLqrFirstOrder
+from algorithm.all import IrsLqrParameters, IrsLqrFirstOrder
 
 import matplotlib.pyplot as plt 
 from matplotlib import cm

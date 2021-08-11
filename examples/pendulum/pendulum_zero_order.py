@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from matplotlib import cm
 
 from pendulum_dynamics import PendulumDynamics
-from irs_lqr.all import IrsLqrParameters, IrsLqrZeroOrder
+from algorithm.all import IrsLqrParameters, IrsLqrZeroOrder
 
 # 1. Load dynamics.
 pendulum = PendulumDynamics(0.05)

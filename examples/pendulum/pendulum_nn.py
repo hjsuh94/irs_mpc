@@ -1,4 +1,4 @@
-from irs_lqr.irs_lqr import IrsLqr
+from algorithm.irs_lqr import IrsLqr
 from pendulum_dynamics import PendulumDynamics
 import numpy as np
 import pydrake.symbolic as ps
@@ -10,10 +10,10 @@ import time
 import matplotlib.pyplot as plt
 from matplotlib import cm
 
-from irs_lqr.dynamical_system import DynamicalSystem
-from irs_lqr.irs_lqr import IrsLqrParameters
-from irs_lqr.irs_lqr_exact import IrsLqrExact
-from irs_lqr.irs_lqr_zero_order import IrsLqrZeroOrder
+from algorithm.dynamical_system import DynamicalSystem
+from algorithm.irs_lqr import IrsLqrParameters
+from algorithm.irs_lqr_exact import IrsLqrExact
+from algorithm.irs_lqr_zero_order import IrsLqrZeroOrder
 
 """1. Define some random ReLU NLP."""
 class DynamicsNLP(nn.Module):

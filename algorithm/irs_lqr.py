@@ -1,7 +1,8 @@
-import numpy as np
 import time
 
-from irs_lqr.tv_lqr import TvLqr, get_solver
+import numpy as np
+from algorithm.tv_lqr import solve_tvlqr, get_solver
+
 
 class IrsLqrParameters:
     """
@@ -17,6 +18,7 @@ class IrsLqrParameters:
     xbound (np.array, shape 2 x m): (lb, ub) bounds on input.
     solver (str): solver name to use for direct LQR.
     """
+
     def __init__(self):
         self.Q = None
         self.Qd = None
@@ -27,6 +29,7 @@ class IrsLqrParameters:
         self.xbound = None
         self.ubound = None
         self.solver_name = "osqp"
+
 
 class IrsLqr:
     def __init__(self, system, params):
@@ -52,7 +55,7 @@ class IrsLqr:
         self.ubound = params.ubound
         self.solver = get_solver(params.solver_name)
 
-        self.T = self.u_trj.shape[0] # horizon of the problem
+        self.T = self.u_trj.shape[0]  # horizon of the problem
         self.dim_x = self.system.dim_x
         self.dim_u = self.system.dim_u
         self.x_trj = self.rollout(self.x0, self.u_trj)
@@ -97,7 +100,7 @@ class IrsLqr:
                 "Qd matrix must be diagonal with dim_x x dim_x.")
         if params.R.shape != (system.dim_u, system.dim_u):
             raise RuntimeError(
-                "R matrix must be diagonal with dim_u x dim_u.")                
+                "R matrix must be diagonal with dim_u x dim_u.")
 
     def rollout(self, x0, u_trj):
         """
@@ -109,9 +112,9 @@ class IrsLqr:
             u_traj (np.array, shape T x m): initial input guess.
         """
         x_trj = np.zeros((self.T + 1, self.dim_x))
-        x_trj[0,:] = x0
+        x_trj[0, :] = x0
         for t in range(self.T):
-            x_trj[t+1,:] = self.system.dynamics(x_trj[t,:], u_trj[t,:])
+            x_trj[t + 1, :] = self.system.dynamics(x_trj[t, :], u_trj[t, :])
 
         return x_trj
 
@@ -126,12 +129,12 @@ class IrsLqr:
         """
         cost = 0.0
         for t in range(self.T):
-            et = x_trj[t,:] - self.xd_trj[t,:]
+            et = x_trj[t, :] - self.xd_trj[t, :]
             cost += et.dot(self.Q).dot(et)
-            cost += (u_trj[t,:]).dot(self.R).dot(u_trj[t,:])
-        et = x_trj[self.T,:] - self.xd_trj[self.T,:]
+            cost += (u_trj[t, :]).dot(self.R).dot(u_trj[t, :])
+        et = x_trj[self.T, :] - self.xd_trj[self.T, :]
         cost += et.dot(self.Q).dot(et)
-        return cost        
+        return cost
 
     def get_TV_matrices(self, x_trj, u_trj):
         """
@@ -151,22 +154,22 @@ class IrsLqr:
         """
         At, Bt, ct = self.get_TV_matrices(x_trj, u_trj)
         x_trj_new = np.zeros(x_trj.shape)
-        x_trj_new[0,:] = x_trj[0,:]
+        x_trj_new[0, :] = x_trj[0, :]
         u_trj_new = np.zeros(u_trj.shape)
 
         for t in range(self.T):
-            x_star, u_star = TvLqr(
+            x_star, u_star = solve_tvlqr(
                 At[t:self.T],
                 Bt[t:self.T],
                 ct[t:self.T],
                 self.Q, self.Qd, self.R,
-                x_trj_new[t,:],
-                self.xd_trj[t:self.T+1],
+                x_trj_new[t, :],
+                self.xd_trj[t:self.T + 1],
                 self.xbound, self.ubound,
                 solver=self.solver)
-            u_trj_new[t,:] = u_star[0]
-            x_trj_new[t+1,:] = self.system.dynamics(
-                x_trj_new[t,:], u_trj_new[t,:])
+            u_trj_new[t, :] = u_star[0]
+            x_trj_new[t + 1, :] = self.system.dynamics(
+                x_trj_new[t, :], u_trj_new[t, :])
 
         return x_trj_new, u_trj_new
 
@@ -178,13 +181,14 @@ class IrsLqr:
         algorithms, setting such a criteria might cause it to terminate early.
         Thus we only provide a max iterations input.
         """
-        while(True):
+        while True:
             x_trj_new, u_trj_new = self.local_descent(self.x_trj, self.u_trj)
             cost_new = self.evaluate_cost(x_trj_new, u_trj_new)
 
-            print("Iteration: {:02d} ".format(self.iter) + " || " + 
+            print("Iteration: {:02d} ".format(self.iter) + " || " +
                   "Current Cost: {0:05f} ".format(cost_new) + " || " +
-                  "Elapsed time: {0:05f} ".format(time.time() - self.start_time))
+                  "Elapsed time: {0:05f} ".format(
+                      time.time() - self.start_time))
 
             self.x_trj_lst.append(x_trj_new)
             self.u_trj_lst.append(u_trj_new)
@@ -194,7 +198,7 @@ class IrsLqr:
                 break
 
             # Go over to next iteration.
-            self.cost = cost_new            
+            self.cost = cost_new
             self.x_trj = x_trj_new
             self.u_trj = u_trj_new
             self.iter += 1

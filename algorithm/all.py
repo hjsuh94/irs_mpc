@@ -8,3 +8,4 @@ from .irs_lqr_first_order import *
 from .irs_lqr_zero_order import *
 from .irs_lqr import *
 from .tv_lqr import *
+from .quasistatic_dynamics import *
