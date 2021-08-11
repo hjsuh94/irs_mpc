@@ -3,7 +3,7 @@ import pydrake.symbolic as ps
 import torch
 import time
 
-from algorithm.dynamical_system import DynamicalSystem
+from irs_lqr.dynamical_system import DynamicalSystem
 
 class ThreeCartDynamics(DynamicalSystem):
     def __init__(self, dt):

@@ -2,7 +2,7 @@ import numpy as np
 import time
 
 from bicycle_dynamics import BicycleDynamics
-from algorithm.all import IrsLqrParameters, IrsLqrFirstOrder
+from irs_lqr.all import IrsLqrParameters, IrsLqrFirstOrder
 
 import matplotlib.pyplot as plt 
 from matplotlib import cm

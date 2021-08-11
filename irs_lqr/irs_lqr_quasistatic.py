@@ -2,8 +2,8 @@ from typing import Dict
 
 from pydrake.all import ModelInstanceIndex
 
-from algorithm.quasistatic_dynamics import QuasistaticDynamics
-from irs_lqr.algorithm.tv_lqr import solve_tvlqr_quasistatic, get_solver
+from irs_lqr.quasistatic_dynamics import QuasistaticDynamics
+from irs_lqr.tv_lqr import solve_tvlqr_quasistatic, get_solver
 
 from zmq_parallel_cmp.array_io import *
 

@@ -5,8 +5,13 @@ from quasistatic_simulator.core.quasistatic_simulator import (
     QuasistaticSimParameters)
 from quasistatic_simulator.core.quasistatic_system import (
     cpp_params_from_py_params)
-from irs_lqr.algorithm.quasistatic_dynamics import *
-from irs_lqr.zmq_parallel_cmp.array_io import *
+
+try:
+    from irs_lqr.quasistatic_dynamics import *
+    from zmq_parallel_cmp.array_io import *
+except ImportError:
+    from irs_lqr.irs_lqr.quasistatic_dynamics import *
+    from irs_lqr.zmq_parallel_cmp.array_io import *
 
 # TODO: make workers system-agnostic. Maybe passsing in a yml file describing
 #  the sytem from the command line?

@@ -1,9 +1,9 @@
-from algorithm.irs_lqr import IrsLqr
+from irs_lqr.irs_lqr import IrsLqr
 import numpy as np
 import time
 
 from bicycle_dynamics import BicycleDynamics
-from algorithm.all import IrsLqrParameters, IrsLqrExact
+from irs_lqr.all import IrsLqrParameters, IrsLqrExact
 
 import matplotlib.pyplot as plt 
 from matplotlib import cm

@@ -10,7 +10,7 @@ from pydrake.all import (
 )
 from pydrake.forwarddiff import jacobian
 
-from algorithm.dynamical_system import DynamicalSystem
+from irs_lqr.dynamical_system import DynamicalSystem
 
 class QuadrotorDynamics(DynamicalSystem):
     def __init__(self, h):

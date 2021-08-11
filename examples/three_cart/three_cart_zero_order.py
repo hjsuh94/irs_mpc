@@ -2,7 +2,7 @@ import numpy as np
 import time
 
 from three_cart_dynamics import ThreeCartDynamics
-from algorithm.all import IrsLqrParameters, IrsLqrZeroOrder
+from irs_lqr.all import IrsLqrParameters, IrsLqrZeroOrder
 
 import matplotlib.pyplot as plt 
 from matplotlib import cm

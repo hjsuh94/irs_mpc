@@ -10,8 +10,8 @@ from quasistatic_simulator.examples.setup_simulation_diagram import (
     create_dict_keyed_by_model_instance_index)
 from quasistatic_simulator_py import (QuasistaticSimulatorCpp)
 
-from algorithm.quasistatic_dynamics import QuasistaticDynamics
-from algorithm.irs_lqr_quasistatic import IrsLqrQuasistatic
+from irs_lqr.quasistatic_dynamics import QuasistaticDynamics
+from irs_lqr.irs_lqr_quasistatic import IrsLqrQuasistatic
 
 from planar_hand_setup import *
 

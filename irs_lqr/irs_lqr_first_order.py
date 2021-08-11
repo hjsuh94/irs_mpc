@@ -1,6 +1,6 @@
 import numpy as np
 
-from algorithm.irs_lqr import IrsLqr
+from irs_lqr.irs_lqr import IrsLqr
 
 class IrsLqrFirstOrder(IrsLqr):
     def __init__(self, system, params, sampling):

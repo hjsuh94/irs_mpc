@@ -1,7 +1,7 @@
 import time
 
 import numpy as np
-from algorithm.tv_lqr import solve_tvlqr, get_solver
+from irs_lqr.tv_lqr import solve_tvlqr, get_solver
 
 
 class IrsLqrParameters:

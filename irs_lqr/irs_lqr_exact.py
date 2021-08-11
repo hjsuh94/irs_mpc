@@ -1,7 +1,7 @@
 import numpy as np
 import time
 
-from algorithm.irs_lqr import IrsLqr
+from irs_lqr.irs_lqr import IrsLqr
 
 class IrsLqrExact(IrsLqr):
     def __init__(self, system, params):
