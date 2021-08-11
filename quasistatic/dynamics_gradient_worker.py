@@ -1,5 +1,5 @@
-import threading
-import os
+import multiprocessing
+import time
 
 import zmq
 
@@ -12,10 +12,10 @@ from quasistatic_simulator.core.quasistatic_system import (
 from quasistatic_dynamics import *
 
 from planar_hand_setup import *
-from zmq_parallel_cmp.array_io import *
+from irs_lqr.zmq_parallel_cmp.array_io import *
 
 
-def f_worker():
+def f_worker(lock: multiprocessing.Lock):
     context = zmq.Context()
 
     # Socket to receive messages on
@@ -26,8 +26,8 @@ def f_worker():
     sender = context.socket(zmq.PUSH)
     sender.connect("tcp://localhost:5558")
 
-    thread_id = threading.current_thread().ident
-    print("worker", thread_id, "ready.")
+    pid = multiprocessing.current_process().pid
+    print("worker", pid, "ready.")
 
     sim_params = QuasistaticSimParameters(
         gravity=gravity,
@@ -56,33 +56,44 @@ def f_worker():
     # Process tasks forever
     i_tasks = 0
     while True:
-        x_u_nominal, t, n_samples, std = recv_array(receiver)
-        x_nominal = x_u_nominal[:q_dynamics.dim_x]
-        u_nominal = x_u_nominal[q_dynamics.dim_x:]
+        x_u_nominal, t_list, n_samples, std = recv_array(receiver)
+        assert len(x_u_nominal.shape) == 2
+        x_nominals = x_u_nominal[:, :q_dynamics.dim_x]
+        u_nominals = x_u_nominal[:, q_dynamics.dim_x:]
 
-        Ahat, Bhat = q_dynamics.calc_AB_first_order(
-            x_nominal=x_nominal,
-            u_nominal=u_nominal,
+        Ahat, Bhat = q_dynamics.calc_AB_first_order_batch(
+            x_nominals=x_nominals,
+            u_nominals=u_nominals,
             n_samples=n_samples,
             std=std)
 
         # Send results to sink
-        send_array(sender, A=np.hstack([Ahat, Bhat]),
-                   t=t, n_samples=n_samples, std=std)
+        n = len(x_nominals)
+        n_x = q_dynamics.dim_x
+        n_u = q_dynamics.dim_u
+        ABhat = np.zeros((n, n_x, n_x + n_u))
+        ABhat[:, :, :n_x] = Ahat
+        ABhat[:, :, n_x:] = Bhat
+        send_array(sender, A=ABhat, t=t_list, n_samples=-1, std=[-1])
 
         i_tasks += 1
         if i_tasks % 10 == 0:
-            print(thread_id, "has processed", i_tasks, "tasks.")
+            lock.acquire()
+            print(pid, "has processed", i_tasks, "tasks.")
+            lock.release()
 
 
 if __name__ == "__main__":
-    f_worker()
-    # p_list = []
-    #
-    # for _ in range(5):
-    #     p = Process(target=f_worker)
-    #     p_list.append(p)
-    #     p.start()
-    #
-    # for p in p_list:
-    #     p.join()
+    p_list = []
+    try:
+        lock = multiprocessing.Lock()
+        for _ in range(8):
+            p = multiprocessing.Process(target=f_worker, args=(lock,))
+            p_list.append(p)
+            p.start()
+        time.sleep(100000)
+    except KeyboardInterrupt:
+        for p in p_list:
+            p.terminate()
+            p.join()
+

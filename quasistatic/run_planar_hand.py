@@ -22,7 +22,7 @@ from sqp_ls_quasistatic import SqpLsQuasistatic
 from planar_hand_setup import *
 
 #%% sim setup
-T = int(round(3 / h))  # num of time steps to simulate forward.
+T = int(round(4 / h))  # num of time steps to simulate forward.
 duration = T * h
 sim_params = QuasistaticSimParameters(
     gravity=gravity,
@@ -99,13 +99,13 @@ for i in range(0):
     Dq_nextDq = q_dynamics.q_sim_py.get_Dq_nextDq()
     Dq_nextDqa_cmd = q_dynamics.q_sim_py.get_Dq_nextDqa_cmd()
 
-    q_dynamics.dynamics_py(x, u, mode='qp_cvx', requires_grad=True)
+    q_dynamics.dynamics(x, u, requires_grad=True)
     Dq_nextDq_cvx = q_dynamics.q_sim_py.get_Dq_nextDq()
     Dq_nextDqa_cmd_cvx = q_dynamics.q_sim_py.get_Dq_nextDqa_cmd()
 
     print('t={},'.format(t), 'x:', x, 'u:', u)
     print('Dq_nextDq\n', Dq_nextDq)
-    print('cvx\n', Dq_nextDq_cvx)
+    print('cpp\n', Dq_nextDq_cvx)
     print('Dq_nextDqa_cmd\n', Dq_nextDqa_cmd)
     print('cvx\n', Dq_nextDqa_cmd_cvx)
     u_traj_0[i] = u
@@ -120,24 +120,24 @@ q_sim_py.animate_system_trajectory(h, q_dict_traj)
 dx_bounds = np.array([-np.ones(dim_x) * 1, np.ones(dim_x) * 1])
 du_bounds = np.array([-np.ones(dim_u) * 0.5 * h, np.ones(dim_u) * 0.5 * h])
 
-xd_dict = {idx_u: q_u0 + np.array([0.30, 0, 0]),
+xd_dict = {idx_u: q_u0 + np.array([0.3, -0.1, 0]),
            idx_a_l: qa_l_knots[0],
            idx_a_r: qa_r_knots[0]}
 xd = q_dynamics.get_x_from_q_dict(xd_dict)
 x_trj_d = np.tile(xd, (T + 1, 1))
 
-Q_dict = {idx_u: np.array([10, 0.001, 0.001]),
+Q_dict = {idx_u: np.array([10, 10, 0.001]),
           idx_a_l: np.array([0.001, 0.001]),
           idx_a_r: np.array([0.001, 0.001])}
 
 Qd_dict = {model: Q_i * 10 for model, Q_i in Q_dict.items()}
 
-R_dict = {idx_a_l: np.array([1, 1]),
-          idx_a_r: np.array([1, 1])}
+R_dict = {idx_a_l: np.array([10, 10]),
+          idx_a_r: np.array([10, 10])}
 
 sqp_ls_q = SqpLsQuasistatic(
     q_dynamics=q_dynamics,
-    std_u_initial=np.ones(dim_u) * 0.3,
+    std_u_initial=np.ones(dim_u) * 0.1,
     T=T,
     Q_dict=Q_dict,
     Qd_dict=Qd_dict,
@@ -149,30 +149,32 @@ sqp_ls_q = SqpLsQuasistatic(
     u_trj_0=u_traj_0)
 
 #%% test multi vs single threaded execution
-# x_trj = sqp_ls_q.x_trj
-# u_trj = sqp_ls_q.u_trj
-#
-# t1 = time.time()
-# At2, Bt2, ct2 = sqp_ls_q.get_TV_matrices_batch(x_trj, u_trj)
-# t2 = time.time()
-# print('parallel time', t2 - t1)
-# time.time()
-#
-# t1 = time.time()
-# At, Bt, ct = sqp_ls_q.get_TV_matrices(x_trj, u_trj)
+x_trj = sqp_ls_q.x_trj
+u_trj = sqp_ls_q.u_trj
+
+t1 = time.time()
+At2, Bt2, ct2 = sqp_ls_q.get_TV_matrices_batch(x_trj, u_trj)
+t2 = time.time()
+print('parallel time', t2 - t1)
+time.time()
+
+t1 = time.time()
+At, Bt, ct = sqp_ls_q.get_TV_matrices(x_trj, u_trj)
 # At1, Bt1, ct1 = sqp_ls_q.get_TV_matrices(x_trj, u_trj)
-# t2 = time.time()
-# print('single-thread time', t2 - t1)
+t2 = time.time()
+print('single-thread time', (t2 - t1))
 
 #%%
-sqp_ls_q.iterate(1e-6, 20)
+# sqp_ls_q.iterate(1e-6, 20)
+
+#%% profile iterate
 # cProfile.runctx('sqp_ls_q.iterate(1e-6, 10)',
 #                 globals=globals(), locals=locals(),
-#                 filename='contact_first_order_stats')
+#                 filename='contact_first_order_stats_multiprocessing')
 
 
 #%%
-x_traj_to_publish = sqp_ls_q.x_trj_list[-1]
+x_traj_to_publish = sqp_ls_q.x_trj_best
 q_dynamics.publish_trajectory(x_traj_to_publish)
 print('x_goal:', xd)
 print('x_final:', x_traj_to_publish[-1])

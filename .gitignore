@@ -6,3 +6,4 @@
 *.pyc
 *.gz
 *.pdf
+*stats*

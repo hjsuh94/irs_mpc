@@ -223,19 +223,25 @@ class SqpLsQuasistatic:
         ct = np.zeros((T, self.dim_x))
         std_u = self.calc_current_std()
 
-        # send T tasks.
-        for t in range(T):
-            x_u = np.hstack([x_trj[t], u_trj[t]])
+        # send tasks.
+        stride = 2
+        n_tasks_sent = 0
+        for t in range(0, T, stride):
+            t1 = min(t + stride, T)
+            x_u = np.zeros((t1 - t, self.dim_x + self.dim_u))
+            x_u[:, :self.dim_x] = x_trj[t: t1]
+            x_u[:, self.dim_x:] = u_trj[t: t1]
             send_array(
-                self.sender, x_u, t=[t], n_samples=100, std=std_u.tolist())
+                self.sender, x_u,
+                t=np.arange(t, t1).tolist(),
+                n_samples=100, std=std_u.tolist())
+            n_tasks_sent += 1
 
-        # receive T tasks.
-        for _ in range(T):
+        # receive tasks.
+        for _ in range(n_tasks_sent):
             ABhat, t_list, _, _ = recv_array(self.receiver)
-            assert len(t_list) == 1
-            t = t_list[0]
-            At[t] = ABhat[:, :self.dim_x]
-            Bt[t] = ABhat[:, self.dim_x:]
+            At[t_list] = ABhat[:, :, :self.dim_x]
+            Bt[t_list] = ABhat[:, :, self.dim_x:]
 
         # compute ct
         for t in range(T):

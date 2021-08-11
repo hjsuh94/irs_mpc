@@ -174,7 +174,7 @@ class QuasistaticDynamics:
         x_nominal: (n_x,) array, 1 state.
         u_nominal: (n_u,) array, 1 input.
         """
-        np.random.seed(2021)
+        # np.random.seed(2021)
         du = np.random.normal(0, std, size=[n_samples, self.dim_u])
         Ahat = np.zeros((self.dim_x, self.dim_x))
         Bhat = np.zeros((self.dim_x, self.dim_u))
