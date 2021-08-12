@@ -1,4 +1,4 @@
-from typing import Dict, Set
+from typing import Dict, Set, Union
 
 import numpy as np
 from pydrake.all import ModelInstanceIndex, MultibodyPlant
@@ -12,6 +12,7 @@ from .dynamical_system import DynamicalSystem
 class QuasistaticDynamics(DynamicalSystem):
     def __init__(self, h: float, q_sim_py: QuasistaticSimulator,
                  q_sim: QuasistaticSimulatorCpp):
+        super().__init__()
         self.h = h
         self.q_sim_py = q_sim_py
         self.q_sim = q_sim
@@ -187,13 +188,13 @@ class QuasistaticDynamics(DynamicalSystem):
         return self.jacobian_xu(x_nominal, u_nominal)
 
     def calc_AB_first_order(self, x_nominal: np.ndarray, u_nominal: np.ndarray,
-                            n_samples: int, std: float):
+                            n_samples: int, std_u: Union[np.ndarray, float]):
         """
         x_nominal: (n_x,) array, 1 state.
         u_nominal: (n_u,) array, 1 input.
         """
         # np.random.seed(2021)
-        du = np.random.normal(0, std, size=[n_samples, self.dim_u])
+        du = np.random.normal(0, std_u, size=[n_samples, self.dim_u])
         ABhat = np.zeros((self.dim_x, self.dim_x + self.dim_u))
         for i in range(n_samples):
             self.dynamics(x_nominal, u_nominal + du[i], requires_grad=True)
@@ -205,7 +206,7 @@ class QuasistaticDynamics(DynamicalSystem):
 
     def calc_AB_first_order_batch(
             self, x_nominals: np.ndarray, u_nominals: np.ndarray,
-            n_samples: int, std: float):
+            n_samples: int, std_u: Union[np.ndarray, float]):
         """
         x_nominals: (n, n_x) array, n states.
         u_nominals: (n, n_u) array, n inputs.
@@ -215,24 +216,66 @@ class QuasistaticDynamics(DynamicalSystem):
 
         for i in range(n):
             ABhat_list[i] = self.calc_AB_first_order(
-                x_nominals[i], u_nominals[i], n_samples, std)
+                x_nominals[i], u_nominals[i], n_samples, std_u)
 
         return ABhat_list
 
     def calc_B_zero_order(self, x_nominal: np.ndarray, u_nominal: np.ndarray,
-                          n_samples: int, std: float):
+                          n_samples: int, std_u: Union[np.ndarray, float]):
         """
-        :param std: standard deviation of the normal distribution.
+        Computes B:=df/du using least-square fit, and A:=df/dx using the
+            exact gradient at x_nominal and u_nominal.
+        :param std_u: standard deviation of the normal distribution when
+            sampling u.
         """
-        du = np.random.normal(0, std, size=[n_samples, self.dim_u])
-        x_next_nominal = self.dynamics(x_nominal, u_nominal)
+        n_x = self.dim_x
+        n_u = self.dim_u
+        x_next_nominal = self.dynamics(
+            x_nominal, u_nominal, requires_grad=True)
+        ABhat = np.zeros((n_x, n_x + n_u))
+        ABhat[:, :n_x] = self.q_sim.get_Dq_nextDq()
+
+        du = np.random.normal(0, std_u, size=[n_samples, self.dim_u])
         x_next = np.zeros((n_samples, self.dim_x))
 
         for i in range(n_samples):
             x_next[i] = self.dynamics(x_nominal, u_nominal + du[i])
 
         dx_next = x_next - x_next_nominal
-        Bhat = np.linalg.lstsq(du, dx_next, rcond=None)[0].transpose()
+        ABhat[:, n_x:] = np.linalg.lstsq(du, dx_next, rcond=None)[0].transpose()
 
-        return Bhat, du
+        return ABhat
 
+    def calc_AB_zero_order(self, x_nominal: np.ndarray, u_nominal: np.ndarray,
+                           n_samples: int, std_u: Union[np.ndarray, float],
+                           std_x: Union[np.ndarray, float] = 1e-3,
+                           damp: float = 1e-2):
+        """
+        Computes both A:=df/dx and B:=df/du using least-square fit.
+        :param std_x (n_x,): standard deviation of the normal distribution
+            when sampling x.
+        :param damp, weight of norm-regularization when solving for A and B.
+        """
+        n_x = self.dim_x
+        n_u = self.dim_u
+        dx = np.random.normal(0, std_x, size=[n_samples, n_x])
+        du = np.random.normal(0, std_u, size=[n_samples, n_u])
+
+        x_next_nominal = self.dynamics(x_nominal, u_nominal)
+        x_next = np.zeros((n_samples, n_x))
+
+        for i in range(n_samples):
+            x_next[i] = self.dynamics(x_nominal + dx[i], u_nominal + du[i])
+
+        dx_next = x_next - x_next_nominal
+        # A, B as in AX = B, not the linearized dynamics.
+        A = np.zeros((n_samples + n_x + n_u, n_x + n_u))
+        A[:n_samples, :n_x] = dx
+        A[:n_samples, n_x:] = du
+        A[n_samples:] = np.eye(n_x + n_u, n_x + n_u) * damp
+        B = np.zeros((n_samples + n_x + n_u, n_x))
+        B[:n_samples] = dx_next
+
+        ABhat = np.linalg.lstsq(A, B, rcond=None)[0].transpose()
+
+        return ABhat

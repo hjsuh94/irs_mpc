@@ -1,4 +1,6 @@
+import time
 import matplotlib.pyplot as plt
+import numpy as np
 
 from pydrake.all import PiecewisePolynomial
 
@@ -94,14 +96,14 @@ for i in range(T):
     Dq_nextDqa_cmd = q_dynamics.q_sim_py.get_Dq_nextDqa_cmd()
 
     q_dynamics.dynamics(x, u, requires_grad=True)
-    Dq_nextDq_cvx = q_dynamics.q_sim_py.get_Dq_nextDq()
-    Dq_nextDqa_cmd_cvx = q_dynamics.q_sim_py.get_Dq_nextDqa_cmd()
+    Dq_nextDq_cpp = q_dynamics.q_sim.get_Dq_nextDq()
+    Dq_nextDqa_cmd_cpp = q_dynamics.q_sim.get_Dq_nextDqa_cmd()
 
     print('t={},'.format(t), 'x:', x, 'u:', u)
-    print('Dq_nextDq\n', Dq_nextDq)
-    print('cpp\n', Dq_nextDq_cvx)
-    print('Dq_nextDqa_cmd\n', Dq_nextDqa_cmd)
-    print('cvx\n', Dq_nextDqa_cmd_cvx)
+    print('Dq_nextDq error cpp vs python',
+          np.linalg.norm(Dq_nextDq - Dq_nextDq_cpp))
+    print('Dq_nextDqa_cmd error cpp vs python',
+          np.linalg.norm(Dq_nextDqa_cmd - Dq_nextDqa_cmd_cpp))
     u_traj_0[i] = u
 
     q_dict_traj.append(q_dynamics.get_q_dict_from_x(x))
@@ -142,6 +144,16 @@ irs_lqr_q = IrsLqrQuasistatic(
     x0=x0,
     u_trj_0=u_traj_0)
 
+#%% compare zero-order and first-order gradient estimation.
+std_dict = {idx_u: np.ones(3) * 1e-3,
+            idx_a_r: np.ones(2) * 0.1,
+            idx_a_l: np.ones(2) * 0.1}
+std_x = q_dynamics.get_x_from_q_dict(std_dict)
+std_u = q_dynamics.get_u_from_q_cmd_dict(std_dict)
+ABhat1 = q_dynamics.calc_AB_first_order(x, u, 100, std_u)
+ABhat0 = q_dynamics.calc_B_zero_order(x, u, 100, std_u=std_u)
+
+
 #%% test multi vs single threaded execution
 # x_trj = sqp_ls_q.x_trj
 # u_trj = sqp_ls_q.u_trj
@@ -159,7 +171,11 @@ irs_lqr_q = IrsLqrQuasistatic(
 # print('single-thread time', (t2 - t1))
 
 #%%
-irs_lqr_q.iterate(20)
+t0 = time.time()
+irs_lqr_q.iterate(30)
+t1 = time.time()
+
+print(f"iterate took {t1 - t0} seconds.")
 
 #%% profile iterate
 # cProfile.runctx('irs_lqr_q.iterate(10)',

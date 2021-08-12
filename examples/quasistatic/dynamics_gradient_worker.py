@@ -68,7 +68,7 @@ def f_worker(lock: multiprocessing.Lock):
             x_nominals=x_nominals,
             u_nominals=u_nominals,
             n_samples=n_samples,
-            std=std)
+            std_u=std)
 
         # Send results to sink
         send_array(sender, A=ABhat, t=t_list, n_samples=-1, std=[-1])

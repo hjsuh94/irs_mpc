@@ -148,7 +148,7 @@ class IrsLqrQuasistatic:
 
         return cost_Qu, cost_Qu_final, cost_Qa, cost_Qa_final, cost_R
 
-    def calc_current_std(self):
+    def calc_current_u_std(self):
         a = self.current_iter ** 0.8
         return self.std_u_initial / a
 
@@ -164,14 +164,15 @@ class IrsLqrQuasistatic:
         At = np.zeros((T, self.dim_x, self.dim_x))
         Bt = np.zeros((T, self.dim_x, self.dim_u))
         ct = np.zeros((T, self.dim_x))
-        std_u = self.calc_current_std()
+        std_u = self.calc_current_u_std()
 
         for t in range(T):
-            ABhat = self.q_dynamics.calc_AB_first_order(
+            # TODO: support 0-order and first-order computation of the gradient.
+            ABhat = self.q_dynamics.calc_B_zero_order(
                 x_nominal=x_trj[t],
                 u_nominal=u_trj[t],
                 n_samples=100,
-                std=std_u)
+                std_u=std_u)
 
             At[t] = ABhat[:, :self.dim_x]
             Bt[t] = ABhat[:, self.dim_x:]
@@ -183,7 +184,7 @@ class IrsLqrQuasistatic:
     def get_TV_matrices_batch(self, x_trj, u_trj):
         """
         Get time varying linearized dynamics given a nominal trajectory,
-        using worker processes launched separately.
+         using worker processes launched separately.
         - args:
             x_trj (np.array, shape (T + 1) x n)
             u_trj (np.array, shape T x m)
@@ -193,9 +194,10 @@ class IrsLqrQuasistatic:
         At = np.zeros((T, self.dim_x, self.dim_x))
         Bt = np.zeros((T, self.dim_x, self.dim_u))
         ct = np.zeros((T, self.dim_x))
-        std_u = self.calc_current_std()
+        std_u = self.calc_current_u_std()
 
         # send tasks.
+        # TODO: make the stride a parameter of the class.
         stride = 2
         n_tasks_sent = 0
         for t in range(0, T, stride):
@@ -203,6 +205,7 @@ class IrsLqrQuasistatic:
             x_u = np.zeros((t1 - t, self.dim_x + self.dim_u))
             x_u[:, :self.dim_x] = x_trj[t: t1]
             x_u[:, self.dim_x:] = u_trj[t: t1]
+            # TODO: support 1-order and first-order computation of the gradient.
             send_array(
                 self.sender, x_u,
                 t=np.arange(t, t1).tolist(),
@@ -229,7 +232,8 @@ class IrsLqrQuasistatic:
             x_trj (np.array, shape (T + 1) x n): nominal state trajectory.
             u_trj (np.array, shape T x m) : nominal input trajectory
         """
-        At, Bt, ct = self.get_TV_matrices_batch(x_trj, u_trj)
+        # TODO: make how TV matrices are computed a parameter of the class.
+        At, Bt, ct = self.get_TV_matrices(x_trj, u_trj)
         x_trj_new = np.zeros(x_trj.shape)
         x_trj_new[0, :] = x_trj[0, :]
         u_trj_new = np.zeros(u_trj.shape)
