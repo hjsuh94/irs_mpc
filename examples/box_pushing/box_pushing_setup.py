@@ -3,8 +3,7 @@ import numpy as np
 
 from quasistatic_simulator.examples.model_paths import models_dir
 
-#object_sdf_path = os.path.join(models_dir, "box_1m_rotation.sdf")
-object_sdf_path = os.path.join(models_dir, "sphere_yz_rotation_r_0.5m.sdf")
+object_sdf_path = os.path.join(models_dir, "box_1m_rotation.sdf")
 model_directive_path = os.path.join(models_dir, "box_pushing.yml")
 
 # robots.
