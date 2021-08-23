@@ -11,14 +11,14 @@ Kp = np.array([50, 50, 50, 200, 200], dtype=float)
 robot_stiffness_dict = {"gripper": Kp}
 
 # object
-num_pieces = 100
+num_pieces = 20
 object_sdf_dict = {}
 for i in range(num_pieces):
     object_name = "carrot_{:02d}".format(i)
     object_sdf_dict[object_name] = object_sdf_path
 
 # environment
-h = 0.1
+h = 1.0
 gravity = np.array([0, 0, 0])
-contact_detection_tolerance = 0.05
+contact_detection_tolerance = 3.0
 gradient_lstsq_tolerance = 1e-3

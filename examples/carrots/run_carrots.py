@@ -117,7 +117,7 @@ du_bounds = np.array([
 """
 
 dx_bounds = np.array([-np.ones(dim_x) * 1, np.ones(dim_x) * 1])
-du_bounds = np.array([-np.ones(dim_u) * 0.1 * h, np.ones(dim_u) * 0.1 * h])
+du_bounds = np.array([-np.ones(dim_u) * 0.01 * h, np.ones(dim_u) * 0.01 * h])
 
 xd_dict = {idx_a: qa_knots[0]}
 for i in idx_u_lst:
@@ -126,17 +126,17 @@ for i in idx_u_lst:
 xd = q_dynamics.get_x_from_q_dict(xd_dict)
 x_trj_d = np.tile(xd, (T + 1, 1))
 
-Q_dict = {idx_a: np.array([0.001, 0.001, 0.001, 0.001, 0.001])}
+Q_dict = {idx_a: np.array([0.0, 0.0, 0.0, 0.0, 0.0])}
 for i in idx_u_lst:
     Q_dict[i] = np.array([100, 100])
 
-Qd_dict = {model: Q_i * 100 for model, Q_i in Q_dict.items()}
+Qd_dict = {model: Q_i * 10 for model, Q_i in Q_dict.items()}
 
-R_dict = {idx_a: 0.01 * np.array([1, 1, 1, 1, 1])}
+R_dict = {idx_a: 2.0 * np.array([1, 1, 1, 1, 1])}
 
 irs_lqr_q = IrsLqrQuasistatic(
     q_dynamics=q_dynamics,
-    std_u_initial= 1.0 * np.array([0.05, 0.05, 0.1, 0.01, 0.01]),
+    std_u_initial= 2.0 * np.array([0.05, 0.05, 0.1, 0.01, 0.01]),
     T=T,
     Q_dict=Q_dict,
     Qd_dict=Qd_dict,

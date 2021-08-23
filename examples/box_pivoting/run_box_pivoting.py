@@ -19,7 +19,7 @@ from irs_lqr.irs_lqr_quasistatic import IrsLqrQuasistatic
 from box_pivoting_setup import *
 
 #%% sim setup
-T = int(round(8 / h))  # num of time steps to simulate forward.
+T = int(round(12 / h))  # num of time steps to simulate forward.
 duration = T * h
 sim_params = QuasistaticSimParameters(
     gravity=gravity,
@@ -31,7 +31,7 @@ sim_params = QuasistaticSimParameters(
 nq_a = 2
 
 qa_knots = np.zeros((2, nq_a))
-qa_knots[0] = [-0.7, 0.5]
+qa_knots[0] = [-0.5, 0.5]
 qa_knots[1] = [0.5, 0.5]
 q_robot_traj = PiecewisePolynomial.FirstOrderHold(
     [0, T * h], qa_knots.T)
@@ -113,22 +113,22 @@ du_bounds = np.array([
 """
 
 dx_bounds = np.array([-np.ones(dim_x) * 10.0, np.ones(dim_x) * 10.0])
-du_bounds = np.array([-np.ones(dim_u) * 0.5 * h, np.ones(dim_u) * 0.5 * h])
+du_bounds = np.array([-np.ones(dim_u) * 0.15 * h, np.ones(dim_u) * 0.15 * h])
 xd_dict = {idx_u: q_u0 + np.array([1.0, 0.5, -np.pi/2]),
            idx_a: qa_knots[0]}
 xd = q_dynamics.get_x_from_q_dict(xd_dict)
 x_trj_d = np.tile(xd, (T + 1, 1))
 
-Q_dict = {idx_u: np.array([100, 100, 500]),
-          idx_a: np.array([0.001, 0.001])}
+Q_dict = {idx_u: np.array([5, 5, 50]),
+          idx_a: np.array([0.0, 0.0])}
 
 Qd_dict = {model: Q_i * 1 for model, Q_i in Q_dict.items()}
 
-R_dict = {idx_a: 1e5 * np.array([1, 1])}
+R_dict = {idx_a: 1e3 * np.array([1, 1])}
 
 irs_lqr_q = IrsLqrQuasistatic(
     q_dynamics=q_dynamics,
-    std_u_initial= 5.0 * np.array([0.1, 0.1]),
+    std_u_initial= np.array([0.2, 0.2]),
     T=T,
     Q_dict=Q_dict,
     Qd_dict=Qd_dict,
@@ -169,7 +169,7 @@ ABhat0 = q_dynamics.calc_B_zero_order(x, u, 100, std_u=std_u)
 #%%
 try:
     t0 = time.time()
-    irs_lqr_q.iterate(2)
+    irs_lqr_q.iterate(20)
 except Exception as e:
     print(e)
     pass

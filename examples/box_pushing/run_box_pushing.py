@@ -19,7 +19,7 @@ from irs_lqr.irs_lqr_quasistatic import IrsLqrQuasistatic
 from box_pushing_setup import *
 
 #%% sim setup
-T = int(round(12 / h))  # num of time steps to simulate forward.
+T = int(round(8 / h))  # num of time steps to simulate forward.
 duration = T * h
 sim_params = QuasistaticSimParameters(
     gravity=gravity,
@@ -32,7 +32,7 @@ nq_a = 2
 
 qa_knots = np.zeros((2, nq_a))
 qa_knots[0] = [0.0, -0.2]
-qa_knots[1] = [0.0, 0.5]
+qa_knots[1] = [0.0, 0.2]
 q_robot_traj = PiecewisePolynomial.FirstOrderHold(
     [0, T * h], qa_knots.T)
 
@@ -79,7 +79,6 @@ x0 = q_dynamics.get_x_from_q_dict(q0_dict)
 u_traj_0 = np.zeros((T, dim_u))
 
 x = np.copy(x0)
-print(x)
 
 q_dict_traj = [q0_dict]
 for i in tqdm(range(T)):
@@ -110,23 +109,33 @@ du_bounds = np.array([
         np.array([0.05, 0.05, 0.1, 0.05, 0.05])])
 """
 
-dx_bounds = np.array([-np.ones(dim_x) * 3.0, np.ones(dim_x) * 3.0])
+dx_bounds = 1e3 * np.array([-np.ones(dim_x), np.ones(dim_x)])
 du_bounds = np.array([-np.ones(dim_u) * 0.2 * h, np.ones(dim_u) * 0.2 * h])
-xd_dict = {idx_u: q_u0 + np.array([0.0,1.0, np.pi/2]),
+
+xd_dict = {idx_u: q_u0 + np.array([0.0, 1.0, 0.0]),
            idx_a: qa_knots[0]}
 xd = q_dynamics.get_x_from_q_dict(xd_dict)
 x_trj_d = np.tile(xd, (T + 1, 1))
 
-Q_dict = {idx_u: np.array([300, 300, 500]),
-          idx_a: np.array([0.001, 0.001])}
+x_trj_d = []
+for t in range(T + 1):
+    x_trj_d.append([0.0, 0.01 * t , 0.0, 0.0, 0.0])
+x_trj_d = np.array(x_trj_d)
 
-Qd_dict = {model: Q_i * 1 for model, Q_i in Q_dict.items()}
+plt.figure()
+plt.plot(x_trj_d[:,1], x_trj_d[:,3], 'ro')
+plt.show()
 
-R_dict = {idx_a: 1e5 * np.array([1, 1])}
+Q_dict = {idx_u: np.array([300, 300, 120]),
+            idx_a: np.array([0.0, 0.0])}
+
+Qd_dict = {model: Q_i * 0 for model, Q_i in Q_dict.items()}
+
+R_dict = {idx_a: 1e1 * np.array([1, 1])}
 
 irs_lqr_q = IrsLqrQuasistatic(
-    q_dynamics=q_dynamics,
-    std_u_initial= np.array([0.1, 0.1]),
+q_dynamics=q_dynamics,
+    std_u_initial= np.array([0.2, 0.2]),
     T=T,
     Q_dict=Q_dict,
     Qd_dict=Qd_dict,
@@ -165,9 +174,10 @@ ABhat0 = q_dynamics.calc_B_zero_order(x, u, 100, std_u=std_u)
 # print('single-thread time', (t2 - t1))
 
 #%%
+
 try:
     t0 = time.time()
-    irs_lqr_q.iterate(50)
+    irs_lqr_q.iterate(10)
 except Exception as e:
     print(e)
     pass

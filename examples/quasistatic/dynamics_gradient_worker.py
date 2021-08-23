@@ -84,7 +84,7 @@ if __name__ == "__main__":
     p_list = []
     try:
         lock = multiprocessing.Lock()
-        for _ in range(8):
+        for _ in range(30):
             p = multiprocessing.Process(target=f_worker, args=(lock,))
             p_list.append(p)
             p.start()

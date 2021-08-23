@@ -19,7 +19,7 @@ from irs_lqr.irs_lqr_quasistatic import IrsLqrQuasistatic
 from plate_pickup_setup import *
 
 #%% sim setup
-T = int(round(8 / h))  # num of time steps to simulate forward.
+T = int(round(4 / h))  # num of time steps to simulate forward.
 duration = T * h
 sim_params = QuasistaticSimParameters(
     gravity=gravity,
@@ -30,12 +30,11 @@ sim_params = QuasistaticSimParameters(
 # trajectory and initial conditions.
 nq_a = 5
 
-qa_knots = np.zeros((3, nq_a))
-qa_knots[0] = [0.32, 0.2, -0.6, -0.05, 0.05]
-qa_knots[1] = [0.18, 0.03, -0.9, -0.05, 0.05]
-qa_knots[2] = [0.05, 0.02, -1.2, -0.05, 0.05]
+qa_knots = np.zeros((2, nq_a))
+qa_knots[0] = [0.02, 0.04, -1.2, -0.03, 0.03]
+qa_knots[1] = [0.02, 0.04, -1.2, -0.03, 0.03]
 q_robot_traj = PiecewisePolynomial.FirstOrderHold(
-    [0, 0.5 * T * h, T * h], qa_knots.T)
+    [0, T * h], qa_knots.T)
 
 """
 # This helps out the trajopt a LOT! 
@@ -56,7 +55,7 @@ robot_name = "gripper"
 object_name = "plate"
 q_a_traj_dict_str = {robot_name: q_robot_traj}
 
-q_u0 = np.array([0.0, 0.01, 0.0])
+q_u0 = np.array([-0.15, 0.01, 0.0])
 
 q0_dict_str = {object_name: q_u0,
                robot_name: qa_knots[0]}
@@ -127,22 +126,25 @@ du_bounds = np.array([
 """
 
 dx_bounds = np.array([-np.ones(dim_x) * 1, np.ones(dim_x) * 1])
-du_bounds = np.array([-np.ones(dim_u) * 0.1 * h, np.ones(dim_u) * 0.1 * h])        
+du_bounds = np.array(
+    [np.array([-0.02, -0.02, -0.02, -0.001, -0.001]),
+     np.array([0.02, 0.02, 0.02, 0.001, 0.001])])
+
 xd_dict = {idx_u: q_u0 + np.array([0.0, 0.5, 0.0]),
            idx_a: qa_knots[0]}
 xd = q_dynamics.get_x_from_q_dict(xd_dict)
 x_trj_d = np.tile(xd, (T + 1, 1))
 
-Q_dict = {idx_u: np.array([0.1, 100, 10]),
-          idx_a: np.array([0.001, 0.001, 0.001, 0.001, 0.001])}
+Q_dict = {idx_u: np.array([100, 100, 10]),
+          idx_a: np.array([0.0, 0.0, 0.0, 0.0, 0.0])}
 
-Qd_dict = {model: Q_i * 1000 for model, Q_i in Q_dict.items()}
+Qd_dict = {model: Q_i * 10 for model, Q_i in Q_dict.items()}
 
-R_dict = {idx_a: 0.1 * np.array([1, 1, 1, 1, 1])}
+R_dict = {idx_a: 100 * np.array([1, 1, 1, 1, 1])}
 
 irs_lqr_q = IrsLqrQuasistatic(
     q_dynamics=q_dynamics,
-    std_u_initial= 0.1 * np.array([0.05, 0.05, 0.1, 0.01, 0.01]),
+    std_u_initial= np.array([0.05, 0.05, 0.1, 0.01, 0.01]),
     T=T,
     Q_dict=Q_dict,
     Qd_dict=Qd_dict,
@@ -183,7 +185,7 @@ ABhat0 = q_dynamics.calc_B_zero_order(x, u, 100, std_u=std_u)
 #%%
 try:
     t0 = time.time()
-    irs_lqr_q.iterate(30)
+    irs_lqr_q.iterate(10)
 except Exception as e:
     print(e)
     pass
