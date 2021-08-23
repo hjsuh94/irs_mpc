@@ -237,7 +237,6 @@ class IrsLqrQuasistatic:
         Bt = np.zeros((T, self.dim_x, self.dim_u))
         ct = np.zeros((T, self.dim_x))
         std_u = self.sampling(self.std_u_initial, self.current_iter)
-        print(std_u)
 
         # send tasks.
         # TODO: make the stride a parameter of the class.
@@ -289,14 +288,6 @@ class IrsLqrQuasistatic:
         x_trj_new[0, :] = x_trj[0, :]
         u_trj_new = np.zeros(u_trj.shape)
 
-        '''
-        x_bounds: (2, T + 1, dim_x). 
-            - x_bounds[0]: lower bounds.
-            - x_bounds[1]: upper bounds.
-        u_bounds: (2, T, dim_u)
-            - u_bounds[0]: lower bounds.
-            - u_bounds[1]: upper bounds. 
-        '''
         if self.x_bounds_abs is not None:
             # x_bounds_abs are used to establish a trust region around a current
             # trajectory.
@@ -319,7 +310,6 @@ class IrsLqrQuasistatic:
             u_bounds_rel = np.zeros((2, self.T, self.dim_u))
             u_bounds_rel[0] = self.u_bounds_rel[0]
             u_bounds_rel[1] = self.u_bounds_rel[1]
-
 
         for t in range(self.T):
             x_star, u_star = solve_tvlqr(

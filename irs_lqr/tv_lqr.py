@@ -95,14 +95,19 @@ def solve_tvlqr(At, Bt, ct, Q, Qd, R, x0, x_trj_d, solver, indices_u_into_x=None
         )
 
         # Compute differences. 
-        if t == 0:
-            du = ut[t] - xt[t, indices_u_into_x]
-        else:
-            du = ut[t] - ut[t - 1]
-        dx = xt[t + 1] - xt[t]
+        if indices_u_into_x is not None:
+            if t == 0:
+                du = ut[t] - xt[t, indices_u_into_x]
+            else:
+                du = ut[t] - ut[t - 1]
+            dx = xt[t + 1] - xt[t]
 
-        prog.AddConstraint(eq(du, dut[t]))
-        prog.AddConstraint(eq(dx, dxt[t]))
+            prog.AddConstraint(eq(du, dut[t]))
+            prog.AddConstraint(eq(dx, dxt[t]))
+            prog.AddQuadraticCost(du.dot(R).dot(du))
+
+        else:
+            prog.AddQuadraticCost(R, np.zeros(n_u), ut[t,:])
 
         # Add constraints.
         if x_bound_abs is not None:
@@ -120,11 +125,6 @@ def solve_tvlqr(At, Bt, ct, Q, Qd, R, x0, x_trj_d, solver, indices_u_into_x=None
 
         # Add cost.
         prog.AddQuadraticErrorCost(Q, x_trj_d[t, :], xt[t, :])
-
-        if indices_u_into_x is not None:
-            prog.AddQuadraticCost(du.dot(R).dot(du))
-        else:
-            prog.AddQuadraticCost(R, np.zeros(n_u), ut[t, :])
 
     # Add final constraint.
     prog.AddQuadraticErrorCost(Qd, x_trj_d[T, :], xt[T, :])

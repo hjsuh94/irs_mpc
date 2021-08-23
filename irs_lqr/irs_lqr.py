@@ -157,16 +157,29 @@ class IrsLqr:
         x_trj_new[0, :] = x_trj[0, :]
         u_trj_new = np.zeros(u_trj.shape)
 
+        if self.xbound is not None:
+            x_bounds_abs = np.zeros((2, self.T + 1, self.dim_x))
+            x_bounds_abs[0] = self.xbound[0]
+            x_bounds_abs[1] = self.xbound[1]
+        if self.ubound is not None:
+            u_bounds_abs = np.zeros((2, self.T, self.dim_u))
+            u_bounds_abs[0] = self.ubound[0]
+            u_bounds_abs[1] = self.ubound[1]
+
         for t in range(self.T):
             x_star, u_star = solve_tvlqr(
                 At[t:self.T],
                 Bt[t:self.T],
                 ct[t:self.T],
                 self.Q, self.Qd, self.R,
-                x_trj_new[t, :],
-                self.xd_trj[t:self.T + 1],
-                self.xbound, self.ubound,
-                solver=self.solver)
+                x0 = x_trj_new[t, :],
+                x_trj_d = self.xd_trj[t:self.T + 1],
+                solver=self.solver,
+                indices_u_into_x=None,
+                x_bound_abs=x_bounds_abs[:, t:, :] if(
+                    self.xbound is not None) else None,
+                u_bound_abs=u_bounds_abs[:, t:, :] if(
+                    self.ubound is not None) else None)
             u_trj_new[t, :] = u_star[0]
             x_trj_new[t + 1, :] = self.system.dynamics(
                 x_trj_new[t, :], u_trj_new[t, :])
