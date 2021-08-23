@@ -1,47 +1,85 @@
 from typing import Dict
+import time 
 
 from pydrake.all import ModelInstanceIndex
 
 from irs_lqr.quasistatic_dynamics import QuasistaticDynamics
-from irs_lqr.tv_lqr import solve_tvlqr_quasistatic, get_solver
+from irs_lqr.tv_lqr import solve_tvlqr, get_solver
 
 from zmq_parallel_cmp.array_io import *
 
+class IrsLqrQuasistaticParameters:
+    def __init__(self):
+        # Necessary arguments defining optimal control problem.
+        self.Q_dict = None
+        self.Qd_dict = None
+        self.R_dict = None
+        self.x0 = None
+        self.x_trj_d = None
+        self.u_trj_0 = None
+        self.T = None
+
+        # Optional arguments defining bounds.
+        self.x_bounds_abs = None
+        self.u_bounds_abs = None
+        self.x_bounds_rel = None
+        self.u_bounds_rel = None
+
+        # Necessary arguments related to sampling.
+        self.sampling = None
+        self.std_u_initial = None        
+        self.num_samples = 100
+
+        # Arguments related to various options.
+        self.decouple_AB = True
+        self.use_workers = True
+        self.gradient_mode = "zero_order_B"
+        self.solver_name = "gurobi"
+        self.task_stride = 1
+        self.publish_every_iteration = True
 
 class IrsLqrQuasistatic:
-    def __init__(self, q_dynamics: QuasistaticDynamics,
-                 std_u_initial: np.ndarray, T: int,
-                 Q_dict: Dict[ModelInstanceIndex, np.ndarray],
-                 R_dict: Dict[ModelInstanceIndex, np.ndarray],
-                 Qd_dict: Dict[ModelInstanceIndex, np.ndarray],
-                 x_trj_d: np.ndarray, dx_bounds: np.ndarray,
-                 du_bounds: np.ndarray,
-                 x0: np.ndarray, u_trj_0: np.ndarray):
+    def __init__(self, q_dynamics: QuasistaticDynamics, 
+        params: IrsLqrQuasistaticParameters):
         """
 
         Arguments are similar to those of SqpLsImplicit.
         Only samples u to estimate B.
         A uses the first derivative of the dynamics at x.
+
+        sampling receives sampling(initial_std, iter) and returns the 
+        current std.
         """
         self.q_dynamics = q_dynamics
         self.dim_x = q_dynamics.dim_x
         self.dim_u = q_dynamics.dim_u
 
-        self.T = T
-        self.x0 = x0
-        self.Q_dict = Q_dict
-        self.Q = self.q_dynamics.get_Q_from_Q_dict(Q_dict)
-        self.Qd_dict = Qd_dict
-        self.Qd = self.q_dynamics.get_Q_from_Q_dict(Qd_dict)
-        self.R_dict = R_dict
-        self.R = self.q_dynamics.get_R_from_R_dict(R_dict)
-        self.x_trj_d = x_trj_d
-        self.dx_bounds = dx_bounds
-        self.du_bounds = du_bounds
+        self.params = params
+
+        self.T = params.T
+        self.x0 = params.x0
+        self.Q_dict = params.Q_dict
+        self.Q = self.q_dynamics.get_Q_from_Q_dict(self.Q_dict)
+        self.Qd_dict = params.Qd_dict
+        self.Qd = self.q_dynamics.get_Q_from_Q_dict(self.Qd_dict)
+        self.R_dict = params.R_dict
+        self.R = self.q_dynamics.get_R_from_R_dict(self.R_dict)
+        self.x_trj_d = params.x_trj_d
+        self.u_trj_0 = params.u_trj_0
+        self.x_bounds_abs = params.x_bounds_abs
+        self.u_bounds_abs = params.u_bounds_abs
+        self.x_bounds_rel = params.x_bounds_rel
+        self.u_bounds_rel = params.u_bounds_rel
         self.indices_u_into_x = q_dynamics.get_u_indices_into_x()
 
-        self.x_trj = self.rollout(x0, u_trj_0)
-        self.u_trj = u_trj_0  # T x m
+        self.decouple_AB = params.decouple_AB 
+        self.use_workers = params.use_workers
+        self.gradient_mode = params.gradient_mode
+        self.task_stride = params.task_stride
+        self.publish_every_iteration = params.publish_every_iteration
+
+        self.x_trj = self.rollout(self.x0, self.u_trj_0)
+        self.u_trj = self.u_trj_0  # T x m
 
         (cost_Qu, cost_Qu_final, cost_Qa, cost_Qa_final,
          cost_R) = self.eval_cost(self.x_trj, self.u_trj)
@@ -52,7 +90,9 @@ class IrsLqrQuasistatic:
         self.cost_best = np.inf
 
         # sampling standard deviation.
-        self.std_u_initial = std_u_initial
+        self.std_u_initial = params.std_u_initial
+        self.sampling = params.sampling
+        self.num_samples = params.num_samples
 
         # logging
         self.x_trj_list = [self.x_trj]
@@ -66,9 +106,10 @@ class IrsLqrQuasistatic:
         self.cost_R_list = [cost_R]
 
         self.current_iter = 1
+        self.start_time = time.time()
 
         # solver
-        self.solver = get_solver('gurobi')
+        self.solver = get_solver(params.solver_name)
 
         # parallelization.
         context = zmq.Context()
@@ -148,10 +189,6 @@ class IrsLqrQuasistatic:
 
         return cost_Qu, cost_Qu_final, cost_Qa, cost_Qa_final, cost_R
 
-    def calc_current_u_std(self):
-        a = self.current_iter ** 0.8
-        return self.std_u_initial / a
-
     def get_TV_matrices(self, x_trj, u_trj):
         """
         Get time varying linearized dynamics given a nominal trajectory.
@@ -164,18 +201,23 @@ class IrsLqrQuasistatic:
         At = np.zeros((T, self.dim_x, self.dim_x))
         Bt = np.zeros((T, self.dim_x, self.dim_u))
         ct = np.zeros((T, self.dim_x))
-        std_u = self.calc_current_u_std()
+        std_u = self.sampling(self.std_u_initial, self.current_iter)
+
+        # Compute ABhat.
+        ABhat_list = self.q_dynamics.calc_AB_batch(
+            x_trj, u_trj, n_samples=self.num_samples, std_u=std_u,
+            mode=self.gradient_mode
+        )
 
         for t in range(T):
-            # TODO: support 0-order and first-order computation of the gradient.
-            ABhat = self.q_dynamics.calc_B_zero_order(
-                x_nominal=x_trj[t],
-                u_nominal=u_trj[t],
-                n_samples=100,
-                std_u=std_u)
+            At[t] = ABhat_list[t, :, :self.dim_x]
+            Bt[t] = ABhat_list[t, :, self.dim_x:]
 
-            At[t] = ABhat[:, :self.dim_x]
-            Bt[t] = ABhat[:, self.dim_x:]
+            if self.decouple_AB:
+                At[t, self.indices_u_into_x, :] = 0.0
+                At[t, :, self.indices_u_into_x] = 0.0
+                Bt[t, self.indices_u_into_x, :] = 0.0
+
             x_next_nominal = self.q_dynamics.dynamics(x_trj[t], u_trj[t])
             ct[t] = x_next_nominal - At[t].dot(x_trj[t]) - Bt[t].dot(u_trj[t])
 
@@ -194,11 +236,12 @@ class IrsLqrQuasistatic:
         At = np.zeros((T, self.dim_x, self.dim_x))
         Bt = np.zeros((T, self.dim_x, self.dim_u))
         ct = np.zeros((T, self.dim_x))
-        std_u = self.calc_current_u_std()
+        std_u = self.sampling(self.std_u_initial, self.current_iter)
+        print(std_u)
 
         # send tasks.
         # TODO: make the stride a parameter of the class.
-        stride = 2
+        stride = self.task_stride
         n_tasks_sent = 0
         for t in range(0, T, stride):
             t1 = min(t + stride, T)
@@ -209,7 +252,7 @@ class IrsLqrQuasistatic:
             send_array(
                 self.sender, x_u,
                 t=np.arange(t, t1).tolist(),
-                n_samples=100, std=std_u.tolist())
+                n_samples=self.num_samples, std=std_u.tolist())
             n_tasks_sent += 1
 
         # receive tasks.
@@ -217,6 +260,11 @@ class IrsLqrQuasistatic:
             ABhat, t_list, _, _ = recv_array(self.receiver)
             At[t_list] = ABhat[:, :, :self.dim_x]
             Bt[t_list] = ABhat[:, :, self.dim_x:]
+
+            if self.decouple_AB:
+                At[t_list, self.indices_u_into_x, :] = 0.0
+                At[t_list, :, self.indices_u_into_x] = 0.0
+                Bt[t_list, self.indices_u_into_x, :] = 0.0
 
         # compute ct
         for t in range(T):
@@ -232,8 +280,11 @@ class IrsLqrQuasistatic:
             x_trj (np.array, shape (T + 1) x n): nominal state trajectory.
             u_trj (np.array, shape T x m) : nominal input trajectory
         """
-        # TODO: make how TV matrices are computed a parameter of the class.
-        At, Bt, ct = self.get_TV_matrices(x_trj, u_trj)
+        if self.use_workers:
+            At, Bt, ct = self.get_TV_matrices_batch(x_trj, u_trj)
+        else:
+            At, Bt, ct = self.get_TV_matrices(x_trj, u_trj) 
+
         x_trj_new = np.zeros(x_trj.shape)
         x_trj_new[0, :] = x_trj[0, :]
         u_trj_new = np.zeros(u_trj.shape)
@@ -246,23 +297,47 @@ class IrsLqrQuasistatic:
             - u_bounds[0]: lower bounds.
             - u_bounds[1]: upper bounds. 
         '''
-        x_bounds = np.zeros((2, self.T + 1, self.dim_x))
-        u_bounds = np.zeros((2, self.T, self.dim_u))
-        x_bounds[0] = x_trj + self.dx_bounds[0]
-        x_bounds[1] = x_trj + self.dx_bounds[1]
-        u_bounds[0] = x_trj[:-1, self.indices_u_into_x] + self.du_bounds[0]
-        u_bounds[1] = x_trj[:-1, self.indices_u_into_x] + self.du_bounds[1]
+        if self.x_bounds_abs is not None:
+            # x_bounds_abs are used to establish a trust region around a current
+            # trajectory.
+            x_bounds_abs = np.zeros((2, self.T + 1, self.dim_x))
+            x_bounds_abs[0] = x_trj + self.x_bounds_abs[0]
+            x_bounds_abs[1] = x_trj + self.x_bounds_abs[1]
+        if self.u_bounds_abs is not None:
+            # u_bounds_abs are used to establish a trust region around a current
+            # trajectory.
+            u_bounds_abs = np.zeros((2, self.T, self.dim_u))
+            u_bounds_abs[0] = x_trj[:-1, self.indices_u_into_x] + self.u_bounds_abs[0]
+            u_bounds_abs[1] = x_trj[:-1, self.indices_u_into_x] + self.u_bounds_abs[1]
+        if self.x_bounds_rel is not None:
+            # this should be rarely used.
+            x_bounds_rel = np.zeros((2, self.T, self.dim_x))
+            x_bounds_rel[0] = self.x_bounds_rel[0]
+            x_bounds_rel[1] = self.x_bounds_rel[1]
+        if self.u_bounds_rel is not None:
+            # u_bounds_rel are used to impose input constraints.
+            u_bounds_rel = np.zeros((2, self.T, self.dim_u))
+            u_bounds_rel[0] = self.u_bounds_rel[0]
+            u_bounds_rel[1] = self.u_bounds_rel[1]
+
 
         for t in range(self.T):
-            x_star, u_star = solve_tvlqr_quasistatic(
+            x_star, u_star = solve_tvlqr(
                 At[t:self.T],
                 Bt[t:self.T],
                 ct[t:self.T], self.Q, self.Qd,
                 self.R, x_trj_new[t, :],
                 self.x_trj_d[t:],
-                x_bounds[:, t:, :], u_bounds[:, t:, :],
+                solver = self.solver,
                 indices_u_into_x=self.indices_u_into_x,
-                solver=self.solver,
+                x_bound_abs = x_bounds_abs[:, t:, :] if (
+                    self.x_bounds_abs is not None) else None,
+                u_bound_abs = u_bounds_abs[:, t:, :] if (
+                    self.u_bounds_abs is not None) else None,                
+                x_bound_rel = x_bounds_rel[:, t:, :] if (
+                    self.x_bounds_rel is not None) else None,
+                u_bound_rel = u_bounds_rel[:, t:, :] if (
+                    self.u_bounds_rel is not None) else None,
                 xinit=None,
                 uinit=None)
             u_trj_new[t, :] = u_star[0]
@@ -273,8 +348,9 @@ class IrsLqrQuasistatic:
 
     def iterate(self, max_iterations):
         while True:
-            print('Iter {},'.format(self.current_iter),
-                  'cost: {}.'.format(self.cost))
+            print('Iter {:02d},'.format(self.current_iter),
+                  'cost: {:0.4f}.'.format(self.cost),
+                  'time: {:0.2f}.'.format(time.time() - self.start_time))
 
             x_trj_new, u_trj_new = self.local_descent(self.x_trj, self.u_trj)
             (cost_Qu, cost_Qu_final, cost_Qa, cost_Qa_final,
@@ -288,6 +364,9 @@ class IrsLqrQuasistatic:
             self.cost_Qa_final_list.append(cost_Qa_final)
             self.cost_R_list.append(cost_R)
             self.cost_all_list.append(cost)
+
+            if self.publish_every_iteration:
+                self.q_dynamics.publish_trajectory(x_trj_new)
 
             if self.cost_best > cost:
                 self.x_trj_best = x_trj_new

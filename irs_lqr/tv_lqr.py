@@ -28,7 +28,8 @@ def get_solver(solver_name: str):
 
 
 def solve_tvlqr(At, Bt, ct, Q, Qd, R, x0, x_trj_d, solver, indices_u_into_x=None,
-                xbound_abs=None, ubound_abs=None, xbound_rel=None, ubound_rel=None,
+                x_bound_abs=None, u_bound_abs=None,
+                x_bound_rel=None, u_bound_rel=None,
                 xinit=None, uinit=None):
     """
     Solve time-varying LQR problem as an instance of a quadratic program (QP).
@@ -74,7 +75,7 @@ def solve_tvlqr(At, Bt, ct, Q, Qd, R, x0, x_trj_d, solver, indices_u_into_x=None
     # 1. Declare new variables corresponding to optimal state and input.
     xt = prog.NewContinuousVariables(T + 1, n_x, "state")
     ut = prog.NewContinuousVariables(T, n_u, "input")
-    dxt = prog.NewContinuousVariables(T, n_u, "delta_state")
+    dxt = prog.NewContinuousVariables(T, n_x, "delta_state")
     dut = prog.NewContinuousVariables(T, n_u, "delta_input")
 
     if xinit is not None:
@@ -104,18 +105,18 @@ def solve_tvlqr(At, Bt, ct, Q, Qd, R, x0, x_trj_d, solver, indices_u_into_x=None
         prog.AddConstraint(eq(dx, dxt[t]))
 
         # Add constraints.
-        if xbound_abs is not None:
+        if x_bound_abs is not None:
             prog.AddBoundingBoxConstraint(
-                xbound_abs[0, t], xbound_abs[1, t], xt[t, :])
-        if ubound_abs is not None:
+                x_bound_abs[0, t], x_bound_abs[1, t], xt[t, :])
+        if u_bound_abs is not None:
             prog.AddBoundingBoxConstraint(
-                ubound_abs[0, t], ubound_abs[1, t], ut[t, :])
-        if xbound_rel is not None:
+                u_bound_abs[0, t], u_bound_abs[1, t], ut[t, :])
+        if x_bound_rel is not None:
             prog.AddBoundingBoxConstraint(
-                xbound_rel[0, t], xbound_rel[1, t], dxt[t, :])
-        if ubound_rel is not None:
+                x_bound_rel[0, t], x_bound_rel[1, t], dxt[t, :])
+        if u_bound_rel is not None:
             prog.AddBoundingBoxConstraint(
-                ubound_rel[0, t], ubound_rel[1, t], dut[t, :])
+                u_bound_rel[0, t], u_bound_rel[1, t], dut[t, :])
 
         # Add cost.
         prog.AddQuadraticErrorCost(Q, x_trj_d[t, :], xt[t, :])
@@ -128,88 +129,9 @@ def solve_tvlqr(At, Bt, ct, Q, Qd, R, x0, x_trj_d, solver, indices_u_into_x=None
     # Add final constraint.
     prog.AddQuadraticErrorCost(Qd, x_trj_d[T, :], xt[T, :])
     
-    if xbound_abs is not None:
+    if x_bound_abs is not None:
         prog.AddBoundingBoxConstraint(
-            xbound_abs[0, T], xbound_abs[1, T], xt[T, :])
-
-    # 4. Solve the program.
-    result = solver.Solve(prog)
-
-    if not result.is_success():
-        raise ValueError("TV_LQR failed. Optimization problem is not solved.")
-
-    xt_star = result.GetSolution(xt)
-    ut_star = result.GetSolution(ut)
-
-    return xt_star, ut_star
-
-def solve_tvlqr_quasistatic(
-        At: np.ndarray, Bt: np.ndarray, ct: np.ndarray, Q: np.ndarray,
-        Qd: np.ndarray, R: np.ndarray, x0: np.ndarray, x_trj_d: np.ndarray,
-        x_bound: np.ndarray, u_bound: np.ndarray, indices_u_into_x: np.ndarray,
-        solver,
-        x_init=None, u_init=None, **kwargs):
-    """
-    Solve time-varying LQR problem as an instance of a quadratic program (QP).
-    n == dim_x, m == dim_u.
-    args:
-     - At   (T x n x n) : time-varying dynamics matrix
-     - Bt   (T x n x m) : time-varying actuation matrix.
-     - ct   (T x n x 1) : bias term for affine dynamics.
-     - Q    (n x n): Quadratic cost on state error x(t) - xd(t)
-     - Qd   (n x n): Quadratic cost on final state error x(t) - xd(t)
-     - R    (m x m): Quadratic cost on actuation.
-     - x0   (n,): Initial state of the problem.
-     - x_trj_d  (np.array, dim: (T + 1) x n): Desired trajectory of the system.
-     - x_bound (2, T + 1, n): Bounds on state variables.
-        x_bound[0, t]: lower bounds on xt[t]. x_bound[1, t]: upper bounds.
-     - u_bound (2, T, m): Bounds on input variables.
-        u_bound[0]: lower bounds on xt[t]. u_bound[1]: upper bounds.
-     - indices_u_into_x: in a quasistatic system, x is the configuration of
-     the whole system, whereas u is the commanded configuration of the
-     actuated DOFs. x[indices_u_into_x] = u.
-     - x_init ((T + 1) x n): initial guess for state.
-     - u_init (T x m): initial guess for input.
-    """
-    prog = MathematicalProgram()
-
-    T = At.shape[0]
-    n_x = Q.shape[0]
-    n_u = R.shape[0]
-
-    # 1. Declare new variables corresponding to optimal state and input.
-    xt = prog.NewContinuousVariables(T + 1, n_x, "state")
-    ut = prog.NewContinuousVariables(T, n_u, "input")
-
-    if x_init is not None:
-        prog.SetInitialGuess(xt, x_init)
-    if u_init is not None:
-        prog.SetInitialGuess(ut, u_init)
-    # 2. Initial constraint.
-    prog.AddConstraint(eq(xt[0, :], x0))
-
-    # 3. Loop over to add dynamics constraints and costs.
-    for t in range(T):
-        # Add affine dynamics constraint.
-        prog.AddLinearEqualityConstraint(
-            np.hstack((At[t], Bt[t], -np.eye(n_x))), -ct[t],
-            np.hstack((xt[t, :], ut[t, :], xt[t + 1, :])))
-
-        # Note that bounds are not added to xt[0], as it is already
-        # equality-constrained.
-        prog.AddBoundingBoxConstraint(x_bound[0, t], x_bound[1, t], xt[t + 1])
-        prog.AddBoundingBoxConstraint(u_bound[0, t], u_bound[1, t], ut[t])
-
-        # Add cost.
-        prog.AddQuadraticErrorCost(Q, x_trj_d[t], xt[t])
-        if t == 0:
-            du = ut[t] - xt[t, indices_u_into_x]
-        else:
-            du = ut[t] - ut[t - 1]
-        prog.AddQuadraticCost(du.dot(R).dot(du))
-
-    # Add final constraint.
-    prog.AddQuadraticErrorCost(Qd, x_trj_d[T, :], xt[T, :])
+            x_bound_abs[0, T], x_bound_abs[1, T], xt[T, :])
 
     # 4. Solve the program.
     result = solver.Solve(prog)
