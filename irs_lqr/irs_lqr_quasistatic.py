@@ -1,4 +1,5 @@
 from typing import Dict
+import matplotlib.pyplot as plt 
 
 from pydrake.all import ModelInstanceIndex
 
@@ -40,6 +41,8 @@ class IrsLqrQuasistatic:
         self.du_bounds = du_bounds
         self.indices_u_into_x = q_dynamics.get_u_indices_into_x()
 
+        self.ABC_storage = []
+
         self.x_trj = self.rollout(x0, u_trj_0)
         self.u_trj = u_trj_0  # T x m
 
@@ -68,7 +71,7 @@ class IrsLqrQuasistatic:
         self.current_iter = 1
 
         # solver
-        self.solver = get_solver('gurobi')
+        self.solver = get_solver('osqp')
 
         # parallelization.
         context = zmq.Context()
@@ -149,8 +152,17 @@ class IrsLqrQuasistatic:
         return cost_Qu, cost_Qu_final, cost_Qa, cost_Qa_final, cost_R
 
     def calc_current_u_std(self):
-        a = self.current_iter ** 0.8
+        a = self.current_iter ** 0.1
         return self.std_u_initial / a
+        """
+        if self.current_iter < 10:
+            return np.array([0.1, 0.1])
+        elif self.current_iter < 20:
+            return np.array([0.01, 0.01])
+        else:
+            return np.array([0.01, 0.01])
+        """
+        
 
     def get_TV_matrices(self, x_trj, u_trj):
         """
@@ -168,11 +180,11 @@ class IrsLqrQuasistatic:
 
         for t in range(T):
             # TODO: support 0-order and first-order computation of the gradient.
-            ABhat = self.q_dynamics.calc_B_zero_order(
+            ABhat = self.q_dynamics.calc_AB_exact(
                 x_nominal=x_trj[t],
-                u_nominal=u_trj[t],
-                n_samples=100,
-                std_u=std_u)
+                u_nominal=u_trj[t])#,
+                #n_samples=100,
+                #std_u=std_u)
 
             At[t] = ABhat[:, :self.dim_x]
             Bt[t] = ABhat[:, self.dim_x:]
@@ -218,6 +230,11 @@ class IrsLqrQuasistatic:
             At[t_list] = ABhat[:, :, :self.dim_x]
             Bt[t_list] = ABhat[:, :, self.dim_x:]
 
+            for index in self.indices_u_into_x:
+                At[t_list, index, :] = 0.0
+                At[t_list, :, index] = 0.0                
+                Bt[t_list, index, :] = 0.0
+
         # compute ct
         for t in range(T):
             x_next_nominal = self.q_dynamics.dynamics(x_trj[t], u_trj[t])
@@ -233,7 +250,23 @@ class IrsLqrQuasistatic:
             u_trj (np.array, shape T x m) : nominal input trajectory
         """
         # TODO: make how TV matrices are computed a parameter of the class.
-        At, Bt, ct = self.get_TV_matrices(x_trj, u_trj)
+        At, Bt, ct = self.get_TV_matrices_batch(x_trj, u_trj)
+
+        """
+        plt.figure()
+        for i in range(self.T):
+            plt.subplot(self.T,1,i+1)
+            plt.imshow(np.hstack((At[i], Bt[i])), cmap='jet')
+            plt.colorbar()
+        plt.show()
+        plt.close()
+        """
+        
+        ABC_storage = []
+        for i in range(self.T):
+            ABC_storage.append(np.hstack((At[i], Bt[i], np.expand_dims(ct[i], 1))))
+        self.ABC_storage.append(ABC_storage)
+
         x_trj_new = np.zeros(x_trj.shape)
         x_trj_new[0, :] = x_trj[0, :]
         u_trj_new = np.zeros(u_trj.shape)
@@ -246,12 +279,14 @@ class IrsLqrQuasistatic:
             - u_bounds[0]: lower bounds.
             - u_bounds[1]: upper bounds. 
         '''
+
         x_bounds = np.zeros((2, self.T + 1, self.dim_x))
         u_bounds = np.zeros((2, self.T, self.dim_u))
         x_bounds[0] = x_trj + self.dx_bounds[0]
-        x_bounds[1] = x_trj + self.dx_bounds[1]
+        x_bounds[1] = x_trj + self.dx_bounds[1]      
+
         u_bounds[0] = x_trj[:-1, self.indices_u_into_x] + self.du_bounds[0]
-        u_bounds[1] = x_trj[:-1, self.indices_u_into_x] + self.du_bounds[1]
+        u_bounds[1] = x_trj[:-1, self.indices_u_into_x] + self.du_bounds[1]      
 
         for t in range(self.T):
             x_star, u_star = solve_tvlqr_quasistatic(
@@ -260,11 +295,10 @@ class IrsLqrQuasistatic:
                 ct[t:self.T], self.Q, self.Qd,
                 self.R, x_trj_new[t, :],
                 self.x_trj_d[t:],
-                x_bounds[:, t:, :], u_bounds[:, t:, :],
+                u_bounds[:, t:, ], self.du_bounds,
                 indices_u_into_x=self.indices_u_into_x,
                 solver=self.solver,
-                xinit=None,
-                uinit=None)
+                x_init=x_trj[t:], u_init=u_trj[t:])
             u_trj_new[t, :] = u_star[0]
             x_trj_new[t + 1, :] = self.q_dynamics.dynamics(
                 x_trj_new[t], u_trj_new[t])
@@ -289,12 +323,21 @@ class IrsLqrQuasistatic:
             self.cost_R_list.append(cost_R)
             self.cost_all_list.append(cost)
 
+            self.q_dynamics.publish_trajectory(x_trj_new)            
+
             if self.cost_best > cost:
                 self.x_trj_best = x_trj_new
                 self.u_trj_best = u_trj_new
                 self.cost_best = cost
 
+
             if self.current_iter > max_iterations:
+
+                self.ABC_storage = np.array(self.ABC_storage)
+                np.save("examples/quasistatic/ABC_storage.npy", self.ABC_storage)
+
+                self.x_trj_list = np.array(self.x_trj_list)
+                np.save("examples/quasistatic/x_trj_lst.npy", self.x_trj_list)
                 break
 
             # Go over to next iteration.

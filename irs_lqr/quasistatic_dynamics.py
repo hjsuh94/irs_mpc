@@ -50,11 +50,11 @@ class QuasistaticDynamics(DynamicalSystem):
         for model in models_all_a:
             name_a = plant_a.GetModelInstanceName(model)
             name_b = plant_b.GetModelInstanceName(model)
-            assert name_a == name_b
+            #assert name_a == name_b
 
             idx_a = velocity_indices_a[model]
             idx_b = velocity_indices_b[model]
-            assert idx_a == idx_b
+            #assert idx_a == idx_b
 
     def get_u_indices_into_x(self):
         u_indices = np.zeros(self.dim_u, dtype=int)
@@ -195,6 +195,8 @@ class QuasistaticDynamics(DynamicalSystem):
         """
         # np.random.seed(2021)
         du = np.random.normal(0, std_u, size=[n_samples, self.dim_u])
+        #du_neg = -np.copy(du)
+        #du = np.vstack((du, du_neg))
         ABhat = np.zeros((self.dim_x, self.dim_x + self.dim_u))
         for i in range(n_samples):
             self.dynamics(x_nominal, u_nominal + du[i], requires_grad=True)
@@ -215,7 +217,7 @@ class QuasistaticDynamics(DynamicalSystem):
         ABhat_list = np.zeros((n, self.dim_x, self.dim_x + self.dim_u))
 
         for i in range(n):
-            ABhat_list[i] = self.calc_AB_first_order(
+            ABhat_list[i] = self.calc_B_zero_order(
                 x_nominals[i], u_nominals[i], n_samples, std_u)
 
         return ABhat_list

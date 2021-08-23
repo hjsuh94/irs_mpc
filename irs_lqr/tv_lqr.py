@@ -5,7 +5,7 @@ from pydrake.all import (
     SnoptSolver,
     ClpSolver,
     GurobiSolver,
-    eq)
+    eq, le, ge)
 
 
 def get_solver(solver_name: str):
@@ -138,6 +138,7 @@ def solve_tvlqr_quasistatic(
     # 1. Declare new variables corresponding to optimal state and input.
     xt = prog.NewContinuousVariables(T + 1, n_x, "state")
     ut = prog.NewContinuousVariables(T, n_u, "input")
+    dut = prog.NewContinuousVariables(T, n_u, "delta_input")
 
     if x_init is not None:
         prog.SetInitialGuess(xt, x_init)
@@ -155,8 +156,8 @@ def solve_tvlqr_quasistatic(
 
         # Note that bounds are not added to xt[0], as it is already
         # equality-constrained.
-        prog.AddBoundingBoxConstraint(x_bound[0, t], x_bound[1, t], xt[t + 1])
-        prog.AddBoundingBoxConstraint(u_bound[0, t], u_bound[1, t], ut[t])
+        #prog.AddBoundingBoxConstraint(x_bound[0, t], x_bound[1, t], xt[t + 1])
+        #prog.AddBoundingBoxConstraint(u_bound[0,t ], u_bound[1, t], ut[t])        
 
         # Add cost.
         prog.AddQuadraticErrorCost(Q, x_trj_d[t], xt[t])
@@ -164,7 +165,17 @@ def solve_tvlqr_quasistatic(
             du = ut[t] - xt[t, indices_u_into_x]
         else:
             du = ut[t] - ut[t - 1]
-        prog.AddQuadraticCost(du.dot(R).dot(du))
+        dx = xt[t + 1] - xt[t]
+
+        prog.AddConstraint(eq(dut[t], du))
+
+        prog.AddQuadraticCost(du.dot(R).dot(du)) 
+
+        #Qe = np.diag([10.0, 10.0, 10.0, 10.0, 10.0])
+        #prog.AddQuadraticErrorCost(Qe, x_init[t], xt[t])
+
+        prog.AddLinearConstraint(np.eye(n_u), u_bound[0], u_bound[1], dut[t])
+
 
     # Add final constraint.
     prog.AddQuadraticErrorCost(Qd, x_trj_d[T, :], xt[T, :])
