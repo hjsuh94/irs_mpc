@@ -33,6 +33,7 @@ class IrsLqrQuasistaticParameters:
         # Arguments related to various options.
         self.decouple_AB = True
         self.use_workers = True
+        # Supports "first_order", "exact", "zero_order_B", "zero_order_AB"
         self.gradient_mode = "zero_order_B"
         self.solver_name = "gurobi"
         self.task_stride = 1
@@ -205,7 +206,7 @@ class IrsLqrQuasistatic:
 
         # Compute ABhat.
         ABhat_list = self.q_dynamics.calc_AB_batch(
-            x_trj, u_trj, n_samples=self.num_samples, std_u=std_u,
+            x_trj[:-1,:], u_trj, n_samples=self.num_samples, std_u=std_u,
             mode=self.gradient_mode
         )
 

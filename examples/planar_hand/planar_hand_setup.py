@@ -24,13 +24,11 @@ gravity = np.array([0, 0, -10.])
 contact_detection_tolerance = 10.0
 gradient_lstsq_tolerance = 1e-3
 
-params = IrsLqrQuasistaticParameters()
-
 # gradient mode
 gradient_mode = "exact"
 decouple_AB = True
 
 # num_workers
-use_workers = False
+use_workers = True
 num_workers = 30
 task_stride = 1
