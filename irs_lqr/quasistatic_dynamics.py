@@ -105,6 +105,7 @@ class QuasistaticDynamics(DynamicalSystem):
                           Q_dict: Dict[ModelInstanceIndex, np.ndarray]):
         Q = np.eye(self.dim_x)
         for model, idx in self.velocity_indices.items():
+            print(idx)
             Q[idx, idx] = Q_dict[model]
         return Q
 
@@ -115,7 +116,8 @@ class QuasistaticDynamics(DynamicalSystem):
         for model in self.models_actuated:
             n_v_i = self.plant.num_velocities(model)
             R[i_start: i_start + n_v_i, i_start: i_start + n_v_i] = \
-                R_dict[model]
+                np.diag(R_dict[model])
+            i_start += n_v_i                
         return R
 
     def publish_trajectory(self, x_traj):

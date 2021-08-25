@@ -23,6 +23,7 @@ from irs_lqr.irs_lqr_quasistatic import (
 
 from planar_hand_setup import *
 
+# Test raw building.
 builder = DiagramBuilder()
 plant, scene_graph, robot_models, object_models = \
     create_plant_with_robots_and_objects(
@@ -42,36 +43,46 @@ plant_ad = diagram_ad.GetSubsystemByName(plant.get_name())
 
 
 xu_ad = initializeAutoDiff([
-    -np.pi/4, -np.pi/4,
-    np.pi/4, np.pi/4,
-    0, 0.35, 0.0,
+    -np.pi/4, -np.pi/4, 0, 0,
+    np.pi/4, np.pi/4, 0, 0,
+    0, 0.35, 0.0, 0, 0, 0,
     0, 0, 0, 0])
+
+xu_ad = initializeAutoDiff([
+    0, -np.pi/4, np.pi/4, 
+    0.35, -np.pi/4, np.pi/4,
+    0,
+    0, 0, 0,
+    0, 0, 0,
+    0,
+    0, 0, 0, 0])
+
 
 plant_context = plant_ad.GetMyMutableContextFromRoot(context)
 
 # Set 
-plant_ad.SetPositions(plant_context, 
-    plant_ad.GetModelInstanceByName("arm_left"), xu_ad[0:2])
+plant_ad.SetPositionsAndVelocities(plant_context, 
+    plant_ad.GetModelInstanceByName("arm_left"), xu_ad[[1,4,8,11]])
 
-plant_ad.SetPositions(plant_context,
-    plant_ad.GetModelInstanceByName("arm_right"), xu_ad[2:4])
+plant_ad.SetPositionsAndVelocities(plant_context,
+    plant_ad.GetModelInstanceByName("arm_right"), xu_ad[[2,5,9,12]])
 
-plant_ad.SetPositions(plant_context, 
-    plant_ad.GetModelInstanceByName("sphere"), xu_ad[4:7])
+plant_ad.SetPositionsAndVelocities(plant_context, 
+    plant_ad.GetModelInstanceByName("sphere"), xu_ad[[0,3,6,7,10,13]])
 
 plant_ad.get_actuation_input_port(
     plant_ad.GetModelInstanceByName("arm_left")).FixValue(
-        plant_context, xu_ad[7:9])
+        plant_context, xu_ad[14:16])
 plant_ad.get_actuation_input_port(
     plant_ad.GetModelInstanceByName("arm_right")).FixValue(
-        plant_context, xu_ad[9:11])
+        plant_context, xu_ad[16:18])
 
 simulator_ad = Simulator_[AutoDiffXd](diagram_ad, context) 
 simulator_ad.AdvanceTo(0.1)
 
 plant_context = plant_ad.GetMyMutableContextFromRoot(context)
 
-x_next = plant_ad.GetPositions(plant_context, plant_ad.GetModelInstanceByName("sphere"))
+x_next = plant_ad.GetPositionsAndVelocities(plant_context)
 AB = autoDiffToGradientMatrix(x_next)
 
 ## Test out the MbpDynamics.
@@ -80,19 +91,10 @@ sim_params = QuasistaticSimParameters(
     nd_per_contact=2,
     contact_detection_tolerance=contact_detection_tolerance,
     is_quasi_dynamic=True)
-q_sim_py = QuasistaticSimulator(
-    model_directive_path=model_directive_path,
-    robot_stiffness_dict=robot_stiffness_dict,
-    object_sdf_paths=object_sdf_dict,
-    sim_params=sim_params,
-    internal_vis=False)
-sim_params_cpp = cpp_params_from_py_params(sim_params)
-sim_params_cpp.gradient_lstsq_tolerance = gradient_lstsq_tolerance
-q_sim_cpp = QuasistaticSimulatorCpp(
-    model_directive_path=model_directive_path,
-    robot_stiffness_str=robot_stiffness_dict,
-    object_sdf_paths=object_sdf_dict,
-    sim_params=sim_params_cpp)
+
+mbp_dynamics = MbpDynamics(h=0.1, model_directive_path=model_directive_path,
+    robot_stiffness_dict=robot_stiffness_dict, object_sdf_paths=object_sdf_dict,
+    sim_params=sim_params)
 
 ## trajectory and initial conditions.
 nq_a = 4
@@ -109,13 +111,18 @@ q0_dict_str = {object_name: q_u0,
                robot_r_name: qa_r_knots[0]}
 
 ## Load in x and u.
-mbp_dynamics = MbpDynamics(h=0.1, q_sim_py=q_sim_py, q_sim=q_sim_cpp)
 q0_dict = create_dict_keyed_by_model_instance_index(
     mbp_dynamics.plant, q_dict_str=q0_dict_str
 )
-x0 = mbp_dynamics.get_x_from_q_dict(q0_dict)
+x0 = mbp_dynamics.get_x_from_qv_dict(q0_dict)
+xnext = mbp_dynamics.dynamics(x0, np.array([0.0, 0.0, 0.0, 0.0]))
 xnext = mbp_dynamics.dynamics_py(x0, np.array([0.0, 0.0, 0.0, 0.0]))
+
 AB1 = mbp_dynamics.jacobian_xu(x0, np.array([0.0, 0.0, 0.0, 0.0]))
+print(np.array_equal(AB, AB1))
+print(AB1.shape)
+print(AB - AB1)
+"""
 AB2 = mbp_dynamics.jacobian_xu(x0, np.array([0.0, 0.0, 0.0, 0.0]))
 AB1hat = mbp_dynamics.calc_AB_first_order(x0, np.array([0.0, 0.0, 0.0, 0.0]),
     n_samples=100, std_u= 0.01 * np.ones(4))
@@ -148,7 +155,7 @@ plt.title("Zero order Smoothing AB")
 plt.imshow(AB3hat)
 plt.colorbar()
 plt.show()
-
+"""
 ## Test out trajopt related stuff. 
 idx_a_l = mbp_dynamics.plant.GetModelInstanceByName(robot_l_name)
 idx_a_r = mbp_dynamics.plant.GetModelInstanceByName(robot_r_name)
@@ -158,3 +165,11 @@ Q_dict = {
     idx_u: np.array([10, 10, 0.2, 0.1, 0.1, 0.1]),
     idx_a_l: np.array([0.3, 0.4, 0.5, 0.6]),
     idx_a_r: np.array([0.7, 0.8, 0.9, 1.0])}
+R_dict = {
+    idx_a_l: np.array([0.3, 0.4]),
+    idx_a_r: np.array([0.7, 0.8])}
+
+
+print(mbp_dynamics.get_Q_from_Q_dict(Q_dict))
+print(mbp_dynamics.get_R_from_R_dict(R_dict))
+
