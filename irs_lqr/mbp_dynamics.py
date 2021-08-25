@@ -1,46 +1,70 @@
-from typing import Dict, Set, Union
+from typing import Dict, Set, Union, List
 
 import numpy as np
 from pydrake.all import (
     ModelInstanceIndex, MultibodyPlant, Simulator, Simulator_,
-    AutoDiffXd, initializeAutoDiff, autoDiffToGradientMatrix)
+    AutoDiffXd, initializeAutoDiff, autoDiffToGradientMatrix,
+    DiagramBuilder, ConnectMeshcatVisualizer)
+from pydrake.systems.meshcat_visualizer import ConnectMeshcatVisualizer
 from quasistatic_simulator.core.quasistatic_simulator import (
-    QuasistaticSimulator)
+    QuasistaticSimulator, QuasistaticSimParameters)
+from quasistatic_simulator.core.utils import create_plant_with_robots_and_objects
 from irs_lqr.quasistatic_dynamics import QuasistaticDynamics
-from quasistatic_simulator_py import (QuasistaticSimulatorCpp)
+
 
 from irs_lqr.dynamical_system import DynamicalSystem
 
-class MbpDynamics(QuasistaticDynamics):
-    def __init__(self, h: float, q_sim_py: QuasistaticSimulator,
-                 q_sim_ad: QuasistaticSimulator,
-                 q_sim: QuasistaticSimulatorCpp):
-        super().__init__(h, q_sim_py, q_sim)
+class MbpDynamics(DynamicalSystem):
+    def __init__(self, h: float, model_directive_path: str,
+        robot_stiffness_dict: Dict[str, np.ndarray],
+        object_sdf_paths: Dict[str, str],
+        sim_params: QuasistaticSimParameters):
+        super().__init__()
         """
         Prerequisites for using MBP dynamics.
         1. q_sim_py has internal_vis to True.
         2. q_sim_py_ad has internal_vis to False, since Meshcat cannot be 
            autodiffed as a diagram.
         """
+        self.h = h 
+        self.model_directive_path = model_directive_path
+        self.robot_stiffness_dict = robot_stiffness_dict
+        self.object_sdf_paths = object_sdf_paths
+        self.sim_params = sim_params
 
-        # Since this is a second order sim, the velocities are also included
-        # in the state of the system.
+        # The quasistatic sim is used for using convenient methods like
+        # getting indices of actuated / unactuated objects.
+        self.q_sim = QuasistaticSimulator(
+            model_directive_path=self.model_directive_path,
+            robot_stiffness_dict=self.robot_stiffness_dict,
+            object_sdf_paths=self.object_sdf_paths,
+            sim_params=self.sim_params)
+
+        # 1. Set up plants. 
+        # This plant is for applications that do not require autodiff, and
+        # has a Meshcat connected. 
+        self.diagram, self.plant, self.scene_graph, self.robot_models, \
+            self.object_models = self.create_diagram(
+            internal_vis=True)
+
+        # Set up stuff related to plant.
         self.dim_x = self.plant.num_positions() + self.plant.num_velocities()
+        self.dim_u = self.q_sim.num_actuated_dofs()
+        self.models_all = self.q_sim.models_all
+        self.models_actuated = self.q_sim.models_actuated
+        self.models_unactuated = self.q_sim.models_unactuated
+        self.position_indices = self.q_sim.get_velocity_indices()
+        self.velocity_indices = self.position_indices      
+
         # Currently only support two dimensional systems.
         assert(self.plant.num_positions() == self.plant.num_velocities())
 
-        
-        # Get diagram and copy to AutodiffXd.
-        self.diagram = self.q_sim_py.diagram
-        # q_sim_ad can be autodiffed since it is not connected to Meshcat.
-        self.q_sim_ad = q_sim_ad
-        self.diagram_ad = self.q_sim_ad.diagram
+        # This diagram is for autodiff
+        self.diagram_ad, _, _, _, _ = self.create_diagram(
+            internal_vis=False)
         self.diagram_ad = self.diagram_ad.ToAutoDiffXd()
 
         # Get plant and scene graph as well as their autodiff components.
-        self.plant = self.q_sim_py.get_plant()
-        self.scene_graph = self.q_sim_py.get_scene_graph()
-
         self.plant_ad = self.diagram_ad.GetSubsystemByName(
             self.plant.get_name())
         self.scene_graph_ad = self.diagram_ad.GetSubsystemByName(
@@ -60,6 +84,9 @@ class MbpDynamics(QuasistaticDynamics):
         self.context_sg_ad = self.diagram_ad.GetMutableSubsystemContext(
             self.scene_graph_ad, self.context_ad)
 
+        self.context_meshcat = self.diagram.GetMutableSubsystemContext(
+            self.viz, self.context)
+
         # Set up simulators.
         self.simulator = Simulator(self.diagram, self.context)
         self.simulator_ad = Simulator_[AutoDiffXd](self.diagram_ad,
@@ -68,6 +95,24 @@ class MbpDynamics(QuasistaticDynamics):
         # Set up initial time for the simulators.
         self.simulator_time = 0.0
         self.simulator_time_ad = 0.0
+
+    def create_diagram(self, internal_vis: bool = False):
+        builder = DiagramBuilder()
+        plant, scene_graph, robot_models, object_models = \
+            create_plant_with_robots_and_objects(
+                builder=builder,
+                model_directive_path=self.model_directive_path,
+                robot_names=[
+                    name for name in self.robot_stiffness_dict.keys()],
+                object_sdf_paths=self.object_sdf_paths,
+                time_step=1e-3,  # Only useful for MBP simulations.
+                gravity=self.sim_params.gravity)
+        
+        if internal_vis:
+            self.viz = ConnectMeshcatVisualizer(builder, scene_graph)
+
+        diagram = builder.Build()
+        return diagram, plant, scene_graph, robot_models, object_models
 
     def get_x_from_qv_dict(self, q_dict: Dict[ModelInstanceIndex, np.ndarray]):
         """
@@ -91,10 +136,50 @@ class MbpDynamics(QuasistaticDynamics):
             for model, n_q_indices in self.position_indices.items()}
         return qv_dict
 
+    def get_q_dict_from_x(self, x: np.ndarray):
+        q_dict = {
+            model: x[n_q_indices]
+            for model, n_q_indices in self.position_indices.items()}
+
+        return q_dict
+
+    def get_q_a_cmd_dict_from_u(self, u: np.ndarray):
+        q_a_cmd_dict = dict()
+        i_start = 0
+        for model in self.models_actuated:
+            n_v_i = self.plant.num_velocities(model)
+            q_a_cmd_dict[model] = u[i_start: i_start + n_v_i]
+            i_start += n_v_i
+
+        return q_a_cmd_dict
+
     def publish_trajectory(self, x_traj):
         q_dict_traj = [self.get_q_dict_from_x(x) for x in x_traj]
-        self.q_sim_py.animate_system_trajectory(h=self.h,
-                                                q_dict_traj=q_dict_traj)
+        self.animate_system_trajectory(h=self.h, q_dict_traj=q_dict_traj)
+
+    def animate_system_trajectory(self, h: float,
+                                  q_dict_traj: List[
+                                      Dict[ModelInstanceIndex, np.ndarray]]):
+        self.viz.draw_period = h
+        self.viz.reset_recording()
+        self.viz.start_recording()
+        for q_dict in q_dict_traj:
+            self.update_mbp_positions(q_dict, self.plant, self.context_plant,
+                self.scene_graph, self.context_sg)
+            self.viz.DoPublish(self.context_meshcat)
+
+        self.viz.stop_recording()
+        self.viz.publish_recording()
+
+    def update_mbp_positions(self, plant, plant_context, scene_graph,
+        scene_graph_context, q_dict):
+        for model_instance_idx, q in q_dict.items():
+            plant.SetPositions(
+                plant_context, model_instance_idx, q)
+
+        # Update query object.
+        self.query_object = scene_graph.get_query_output_port().Eval(
+                scene_graph_context)
 
     def update_mbp_positions_and_velocities_from_dict(
         self, plant, plant_context, 
@@ -117,6 +202,11 @@ class MbpDynamics(QuasistaticDynamics):
         self.query_object = scene_graph.get_query_output_port().Eval(
                 scene_graph_context)
 
+    def update_mbp_inputs(self, plant, plant_context, q_a_dict):
+        for model in self.models_actuated:
+            plant.get_actuation_input_port(model).FixValue(
+                    plant_context, q_a_dict[model])
+
     def get_Q_from_Q_dict(self,
                           Q_dict: Dict[ModelInstanceIndex, np.ndarray]):
         Q = np.eye(self.dim_x)
@@ -137,11 +227,6 @@ class MbpDynamics(QuasistaticDynamics):
             R[i_start: i_start + n_v_i, i_start: i_start + n_v_i] = \
                 R_dict[model]
         return R
-        
-    def update_mbp_inputs(self, plant, plant_context, q_a_dict):
-        for model in self.models_actuated:
-            plant.get_actuation_input_port(model).FixValue(
-                    plant_context, q_a_dict[model])
 
     def dynamics_py(self, x: np.ndarray, u: np.ndarray,
                     mode: str = 'qp_mp', requires_grad: bool = False):
