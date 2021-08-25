@@ -115,7 +115,8 @@ class QuasistaticDynamics(DynamicalSystem):
         for model in self.models_actuated:
             n_v_i = self.plant.num_velocities(model)
             R[i_start: i_start + n_v_i, i_start: i_start + n_v_i] = \
-                R_dict[model]
+                np.diag(R_dict[model])
+            i_start += n_v_i
         return R
 
     def publish_trajectory(self, x_traj):
