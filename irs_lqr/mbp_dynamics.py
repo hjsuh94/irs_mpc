@@ -218,9 +218,7 @@ class MbpDynamics(QuasistaticDynamics):
         du = np.random.normal(0, std_u, size=[n_samples, self.dim_u])
         ABhat = np.zeros((self.dim_x, self.dim_x + self.dim_u))
         for i in range(n_samples):
-            self.dynamics(x_nominal, u_nominal + du[i], requires_grad=True)
-            ABhat[:, :self.dim_x] += self.q_sim.get_Dq_nextDq()
-            ABhat[:, self.dim_x:] += self.q_sim.get_Dq_nextDqa_cmd()
+            ABhat += self.jacobian_xu(x_nominal, u_nominal + du[i])
 
         ABhat /= n_samples
         return ABhat
@@ -269,7 +267,9 @@ class MbpDynamics(QuasistaticDynamics):
         x_next_nominal = self.dynamics(
             x_nominal, u_nominal, requires_grad=True)
         ABhat = np.zeros((n_x, n_x + n_u))
-        ABhat[:, :n_x] = self.q_sim.get_Dq_nextDq()
+        AB_first_order = self.calc_AB_first_order(x_nominal, u_nominal,
+            n_samples, std_u)
+        ABhat[:, :n_x] = AB_first_order[:, :n_x]
 
         du = np.random.normal(0, std_u, size=[n_samples, self.dim_u])
         x_next = np.zeros((n_samples, self.dim_x))
@@ -285,7 +285,7 @@ class MbpDynamics(QuasistaticDynamics):
     def calc_AB_zero_order(self, x_nominal: np.ndarray, u_nominal: np.ndarray,
                            n_samples: int, std_u: Union[np.ndarray, float],
                            std_x: Union[np.ndarray, float] = 1e-3,
-                           damp: float = 1e-2):
+                           damp: float = 1e-10):
         """
         Computes both A:=df/dx and B:=df/du using least-square fit.
         :param std_x (n_x,): standard deviation of the normal distribution

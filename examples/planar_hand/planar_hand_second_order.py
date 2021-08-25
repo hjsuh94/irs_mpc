@@ -117,8 +117,37 @@ x0 = mbp_dynamics.get_x_from_q_dict(q0_dict)
 xnext = mbp_dynamics.dynamics_py(x0, np.array([0.0, 0.0, 0.0, 0.0]))
 AB1 = mbp_dynamics.jacobian_xu(x0, np.array([0.0, 0.0, 0.0, 0.0]))
 AB2 = mbp_dynamics.jacobian_xu(x0, np.array([0.0, 0.0, 0.0, 0.0]))
+AB1hat = mbp_dynamics.calc_AB_first_order(x0, np.array([0.0, 0.0, 0.0, 0.0]),
+    n_samples=100, std_u= 0.01 * np.ones(4))
+AB2hat = mbp_dynamics.calc_B_zero_order(x0, np.array([0.0, 0.0, 0.0, 0.0]),
+    n_samples=100, std_u= 0.01 * np.ones(4))    
+AB3hat = mbp_dynamics.calc_AB_zero_order(x0, np.array([0.0, 0.0, 0.0, 0.0]),
+    n_samples=100, std_u= 0.01 * np.ones(4))        
+print(AB1hat)
+print(AB2hat)
+print(AB3hat)
 
-print(AB1.shape)
+plt.figure()
+plt.subplot(4,1,1)
+plt.title("Exact AB")
+plt.imshow(AB1)
+plt.colorbar()
+
+plt.subplot(4,1,2)
+plt.title("First order Smoothing AB")
+plt.imshow(AB1hat)
+plt.colorbar()
+
+plt.subplot(4,1,3)
+plt.title("Zero order Smoothing B")
+plt.imshow(AB2hat)
+plt.colorbar()
+
+plt.subplot(4,1,4)
+plt.title("Zero order Smoothing AB")
+plt.imshow(AB3hat)
+plt.colorbar()
+plt.show()
 
 ## Test out trajopt related stuff. 
 idx_a_l = mbp_dynamics.plant.GetModelInstanceByName(robot_l_name)
