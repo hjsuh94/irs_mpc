@@ -57,7 +57,8 @@ class MbpDynamics(DynamicalSystem):
         self.velocity_indices = self.position_indices      
 
         # Currently only support two dimensional systems.
-        assert(self.plant.num_positions() == self.plant.num_velocities())
+        assert(self.plant.num_positions() == self.plant.num_velocities(),
+            "MbpDynamics currently only supports 2d systems.")
 
         # This diagram is for autodiff
         self.diagram_ad, _, _, _, _ = self.create_diagram(
@@ -153,9 +154,20 @@ class MbpDynamics(DynamicalSystem):
 
         return q_a_cmd_dict
 
+    def get_u_from_q_cmd_dict(self,
+                              q_cmd_dict: Dict[ModelInstanceIndex, np.ndarray]):
+        u = np.zeros(self.dim_u)
+        i_start = 0
+        for model in self.models_actuated:
+            n_v_i = self.plant.num_velocities(model)
+            u[i_start: i_start + n_v_i] = q_cmd_dict[model]
+            i_start += n_v_i
+
+        return u
+
     def publish_trajectory(self, x_traj):
-        q_dict_traj = [self.get_q_dict_from_x(x) for x in x_traj]
-        self.animate_system_trajectory(h=self.h, q_dict_traj=q_dict_traj)
+        qv_dict_traj = [self.get_qv_dict_from_x(x) for x in x_traj]
+        self.animate_system_trajectory(h=self.h, q_dict_traj=qv_dict_traj)
 
     def animate_system_trajectory(self, h: float,
                                   q_dict_traj: List[
@@ -164,9 +176,11 @@ class MbpDynamics(DynamicalSystem):
         self.viz.reset_recording()
         self.viz.start_recording()
         for q_dict in q_dict_traj:
-            self.update_mbp_positions(q_dict, self.plant, self.context_plant,
-                self.scene_graph, self.context_sg)
-            self.viz.DoPublish(self.context_meshcat)
+            self.update_mbp_positions_and_velocities_from_dict(
+                self.plant, self.context_plant,
+                self.scene_graph, self.context_sg, q_dict)
+
+            self.viz.DoPublish(self.context_meshcat, [])
 
         self.viz.stop_recording()
         self.viz.publish_recording()
