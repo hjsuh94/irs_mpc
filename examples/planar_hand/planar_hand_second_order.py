@@ -17,9 +17,10 @@ from quasistatic_simulator_py import (QuasistaticSimulatorCpp)
 from quasistatic_simulator.core.utils import create_plant_with_robots_and_objects
 
 from irs_lqr.quasistatic_dynamics import QuasistaticDynamics
-from irs_lqr.mbp_dynamics import MbpDynamics
+from irs_lqr.mbp_dynamics import MbpDynamics 
 from irs_lqr.irs_lqr_quasistatic import (
     IrsLqrQuasistatic, IrsLqrQuasistaticParameters)
+from irs_lqr.irs_lqr_mbp import IrsLqrMbp
 
 from planar_hand_setup import *
 
@@ -122,13 +123,13 @@ AB1 = mbp_dynamics.jacobian_xu(x0, np.array([0.0, 0.0, 0.0, 0.0]))
 print(np.array_equal(AB, AB1))
 print(AB1.shape)
 print(AB - AB1)
-"""
+
 AB2 = mbp_dynamics.jacobian_xu(x0, np.array([0.0, 0.0, 0.0, 0.0]))
-AB1hat = mbp_dynamics.calc_AB_first_order(x0, np.array([0.0, 0.0, 0.0, 0.0]),
+AB1hat = mbp_dynamics.calc_AB_first_order(x0, np.array([0.1, 0.0, 0.0, 0.0]),
     n_samples=100, std_u= 0.01 * np.ones(4))
-AB2hat = mbp_dynamics.calc_B_zero_order(x0, np.array([0.0, 0.0, 0.0, 0.0]),
+AB2hat = mbp_dynamics.calc_B_zero_order(x0, np.array([0.1, 0.0, 0.0, 0.0]),
     n_samples=100, std_u= 0.01 * np.ones(4))    
-AB3hat = mbp_dynamics.calc_AB_zero_order(x0, np.array([0.0, 0.0, 0.0, 0.0]),
+AB3hat = mbp_dynamics.calc_AB_zero_order(x0, np.array([0.1, 0.0, 0.0, 0.0]),
     n_samples=100, std_u= 0.01 * np.ones(4))        
 print(AB1hat)
 print(AB2hat)
@@ -155,7 +156,7 @@ plt.title("Zero order Smoothing AB")
 plt.imshow(AB3hat)
 plt.colorbar()
 plt.show()
-"""
+
 ## Test out trajopt related stuff. 
 idx_a_l = mbp_dynamics.plant.GetModelInstanceByName(robot_l_name)
 idx_a_r = mbp_dynamics.plant.GetModelInstanceByName(robot_r_name)
@@ -169,7 +170,33 @@ R_dict = {
     idx_a_l: np.array([0.3, 0.4]),
     idx_a_r: np.array([0.7, 0.8])}
 
+params = IrsLqrQuasistaticParameters()
+params.Q_dict = Q_dict
+params.Qd_dict = {model: Q_i * 1 for model, Q_i in params.Q_dict.items()}
+params.R_dict = R_dict
 
-print(mbp_dynamics.get_Q_from_Q_dict(Q_dict))
-print(mbp_dynamics.get_R_from_R_dict(R_dict))
+xd_dict = {idx_u: q_u0 + np.array([0.4, -0.1, 0, 0, 0, 0]),
+           idx_a_l: qa_l_knots[0],
+           idx_a_r: qa_r_knots[0]}
+xd = mbp_dynamics.get_x_from_q_dict(xd_dict)
+x_trj_d = np.tile(xd, (T + 1, 1))
+
+params.x0 = x0
+params.x_trj_d = x_trj_d
+params.u_trj_0 = u_traj_0
+params.T = T
+
+params.u_bounds_rel = np.array([
+    -np.ones(dim_u) * 0.5 * h, np.ones(dim_u) * 0.5 * h])
+
+def sampling(u_initial, iter):
+    return u_initial ** (0.5 * iter)
+
+params.sampling = sampling
+params.std_u_initial = np.ones(dim_u) * 0.3
+
+params.decouple_AB = decouple_AB
+params.use_workers = use_workers
+params.gradient_mode = gradient_mode
+params.task_stride = task_stride
 

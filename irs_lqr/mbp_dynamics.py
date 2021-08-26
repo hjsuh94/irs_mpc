@@ -40,6 +40,13 @@ class MbpDynamics(DynamicalSystem):
             object_sdf_paths=self.object_sdf_paths,
             sim_params=self.sim_params)
 
+        self.dim_u = self.q_sim.num_actuated_dofs()
+        self.models_all = self.q_sim.models_all
+        self.models_actuated = self.q_sim.models_actuated
+        self.models_unactuated = self.q_sim.models_unactuated
+        self.position_indices = self.q_sim.get_velocity_indices()
+        self.velocity_indices = self.position_indices      
+
         # 1. Set up plants. 
         # This plant is for applications that do not require autodiff, and
         # has a Meshcat connected. 
@@ -49,15 +56,9 @@ class MbpDynamics(DynamicalSystem):
 
         # Set up stuff related to plant.
         self.dim_x = self.plant.num_positions() + self.plant.num_velocities()
-        self.dim_u = self.q_sim.num_actuated_dofs()
-        self.models_all = self.q_sim.models_all
-        self.models_actuated = self.q_sim.models_actuated
-        self.models_unactuated = self.q_sim.models_unactuated
-        self.position_indices = self.q_sim.get_velocity_indices()
-        self.velocity_indices = self.position_indices      
 
         # Currently only support two dimensional systems.
-        assert(self.plant.num_positions() == self.plant.num_velocities(),
+        assert (self.plant.num_positions() == self.plant.num_velocities(),
             "MbpDynamics currently only supports 2d systems.")
 
         # This diagram is for autodiff
