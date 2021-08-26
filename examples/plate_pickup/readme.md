@@ -1,0 +1,1 @@
+# Plate Pickup Example

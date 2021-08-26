@@ -1,6 +1,7 @@
 import time
 import matplotlib.pyplot as plt
 import numpy as np
+from tqdm import tqdm
 
 from pydrake.all import PiecewisePolynomial
 
@@ -16,10 +17,10 @@ from irs_lqr.quasistatic_dynamics import QuasistaticDynamics
 from irs_lqr.irs_lqr_quasistatic import (
     IrsLqrQuasistatic, IrsLqrQuasistaticParameters)
 
-from planar_hand_setup import *
+from plate_pickup_setup import *
 
 #%% sim setup
-T = int(round(6 / h))  # num of time steps to simulate forward.
+T = int(round(4 / h))  # num of time steps to simulate forward.
 duration = T * h
 sim_params = QuasistaticSimParameters(
     gravity=gravity,
@@ -28,26 +29,37 @@ sim_params = QuasistaticSimParameters(
     is_quasi_dynamic=True)
 
 # trajectory and initial conditions.
-nq_a = 2
-qa_l_knots = np.zeros((2, nq_a))
-qa_l_knots[0] = [-np.pi / 4, -np.pi / 4]
-q_robot_l_traj = PiecewisePolynomial.ZeroOrderHold(
-    [0, T * h], qa_l_knots.T)
+nq_a = 5
 
-qa_r_knots = np.zeros((2, nq_a))
-qa_r_knots[0] = [np.pi / 4, np.pi / 4]
-q_robot_r_traj = PiecewisePolynomial.ZeroOrderHold(
-    [0, T * h], qa_r_knots.T)
+qa_knots = np.zeros((2, nq_a))
+qa_knots[0] = [0.02, 0.04, -1.2, -0.03, 0.03]
+qa_knots[1] = [0.02, 0.04, -1.2, -0.03, 0.03]
+q_robot_traj = PiecewisePolynomial.FirstOrderHold(
+    [0, T * h], qa_knots.T)
 
-q_a_traj_dict_str = {robot_l_name: q_robot_l_traj,
-                     robot_r_name: q_robot_r_traj}
+"""
+# This helps out the trajopt a LOT! 
+qa_knots = np.zeros((7, nq_a))
+# x, y, z, dy1, dy2
+qa_knots[0] = [0.32, 0.2, -0.6, -0.05, 0.05]
+qa_knots[1] = [0.22, 0.05, -0.6, -0.04, 0.04]
+qa_knots[2] = [0.18, 0.05, -1.0, -0.02, 0.02]
+qa_knots[3] = [0.05, 0.03, -1.2, -0.02, 0.02]
+qa_knots[4] = [0.05, 0.06, -1.2, -0.01, 0.01]
+qa_knots[5] = [0.05, 0.2, -1.2, -0.00, 0.00]
+qa_knots[6] = [0.32, 0.5, -1.2, -0.00, 0.00]
+q_robot_traj = PiecewisePolynomial.FirstOrderHold(
+    np.linspace(0, 8, 7), qa_knots.T)    
+"""
 
-q_u0 = np.array([0, 0.35, 0])
+robot_name = "gripper"
+object_name = "plate"
+q_a_traj_dict_str = {robot_name: q_robot_traj}
+
+q_u0 = np.array([-0.15, 0.01, 0.0])
 
 q0_dict_str = {object_name: q_u0,
-               robot_l_name: qa_l_knots[0],
-               robot_r_name: qa_r_knots[0]}
-
+               robot_name: qa_knots[0]}
 
 q_sim_py = QuasistaticSimulator(
     model_directive_path=model_directive_path,
@@ -67,8 +79,7 @@ q_sim_cpp = QuasistaticSimulatorCpp(
 
 plant = q_sim_cpp.get_plant()
 q_sim_py.get_robot_name_to_model_instance_dict()
-idx_a_l = plant.GetModelInstanceByName(robot_l_name)
-idx_a_r = plant.GetModelInstanceByName(robot_r_name)
+idx_a = plant.GetModelInstanceByName(robot_name)
 idx_u = plant.GetModelInstanceByName(object_name)
 
 q0_dict = create_dict_keyed_by_model_instance_index(
@@ -84,50 +95,36 @@ x0 = q_dynamics.get_x_from_q_dict(q0_dict)
 u_traj_0 = np.zeros((T, dim_u))
 
 x = np.copy(x0)
+print(x)
 
 q_dict_traj = [q0_dict]
-for i in range(T):
+for i in tqdm(range(T)):
     # print('--------------------------------')
     t = h * i
-    q_cmd_dict = {idx_a_l: q_robot_l_traj.value(t + h).ravel(),
-                  idx_a_r: q_robot_r_traj.value(t + h).ravel()}
-    u = q_dynamics.get_u_from_q_cmd_dict(q_cmd_dict)
-    x = q_dynamics.dynamics_py(x, u, mode='qp_mp', requires_grad=True)
-    Dq_nextDq = q_dynamics.q_sim_py.get_Dq_nextDq()
-    Dq_nextDqa_cmd = q_dynamics.q_sim_py.get_Dq_nextDqa_cmd()
+    q_cmd_dict = {idx_a: q_robot_traj.value(t + h).ravel()}
 
-    q_dynamics.dynamics(x, u, requires_grad=True)
+    u = q_dynamics.get_u_from_q_cmd_dict(q_cmd_dict)
+    x = q_dynamics.dynamics(x, u, requires_grad=True)
     Dq_nextDq_cpp = q_dynamics.q_sim.get_Dq_nextDq()
     Dq_nextDqa_cmd_cpp = q_dynamics.q_sim.get_Dq_nextDqa_cmd()
 
-    print('t={},'.format(t), 'x:', x, 'u:', u)
-    print('Dq_nextDq error cpp vs python',
-          np.linalg.norm(Dq_nextDq - Dq_nextDq_cpp))
-    print('Dq_nextDqa_cmd error cpp vs python',
-          np.linalg.norm(Dq_nextDqa_cmd - Dq_nextDqa_cmd_cpp))
     u_traj_0[i] = u
 
     q_dict_traj.append(q_dynamics.get_q_dict_from_x(x))
 
-
 q_sim_py.animate_system_trajectory(h, q_dict_traj)
 
-
 #%%
-
+# gripper_x plate_x gripper_y plate_y gripper_theta plate_theta gd1 gd2
 params = IrsLqrQuasistaticParameters()
 params.Q_dict = {
-    idx_u: np.array([10, 10, 0.0]),
-    idx_a_l: np.array([0.0, 0.0]),
-    idx_a_r: np.array([0.0, 0.0])}
-params.Qd_dict = {model: Q_i * 1 for model, Q_i in params.Q_dict.items()}
-params.R_dict = {
-    idx_a_l: 1.0 * np.array([1, 1]),
-    idx_a_r: 1.0 * np.array([1, 1])}
+    idx_u: np.array([100, 100, 10]),
+    idx_a: np.array([0.0, 0.0, 0.0, 0.0, 0.0])}
+params.Qd_dict = {model: Q_i * 10 for model, Q_i in params.Q_dict.items()}
+params.R_dict = {idx_a: 100 * np.array([1, 1, 1, 1, 1])}
 
-xd_dict = {idx_u: q_u0 + np.array([0.4, -0.1, 0]),
-           idx_a_l: qa_l_knots[0],
-           idx_a_r: qa_r_knots[0]}
+xd_dict = {idx_u: q_u0 + np.array([0.0, 0.5, 0.0]),
+           idx_a: qa_knots[0]}
 xd = q_dynamics.get_x_from_q_dict(xd_dict)
 x_trj_d = np.tile(xd, (T + 1, 1))
 
@@ -137,13 +134,13 @@ params.u_trj_0 = u_traj_0
 params.T = T
 
 params.u_bounds_rel = np.array([
-    -np.ones(dim_u) * 0.5 * h, np.ones(dim_u) * 0.5 * h])
+    -np.ones(dim_u) * 0.2 * h, np.ones(dim_u) * 0.2 * h])
 
 def sampling(u_initial, iter):
     return u_initial ** (0.5 * iter)
 
 params.sampling = sampling
-params.std_u_initial = np.ones(dim_u) * 0.3
+params.std_u_initial = np.ones(dim_u) * 0.1
 
 params.decouple_AB = decouple_AB
 params.use_workers = use_workers
@@ -151,38 +148,15 @@ params.gradient_mode = gradient_mode
 params.task_stride = task_stride
 params.num_samples = num_samples
 
-
 irs_lqr_q = IrsLqrQuasistatic(q_dynamics=q_dynamics, params=params)
 
-#%% compare zero-order and first-order gradient estimation.
-std_dict = {idx_u: np.ones(3) * 1e-3,
-            idx_a_r: np.ones(2) * 0.1,
-            idx_a_l: np.ones(2) * 0.1}
-std_x = q_dynamics.get_x_from_q_dict(std_dict)
-std_u = q_dynamics.get_u_from_q_cmd_dict(std_dict)
-ABhat1 = q_dynamics.calc_AB_first_order(x, u, 100, std_u)
-ABhat0 = q_dynamics.calc_B_zero_order(x, u, 100, std_u=std_u)
+try:
+    t0 = time.time()
+    irs_lqr_q.iterate(num_iters)
+except Exception as e:
+    print(e)
+    pass
 
-
-#%% test multi vs single threaded execution
-# x_trj = sqp_ls_q.x_trj
-# u_trj = sqp_ls_q.u_trj
-#
-# t1 = time.time()
-# At2, Bt2, ct2 = sqp_ls_q.get_TV_matrices_batch(x_trj, u_trj)
-# t2 = time.time()
-# print('parallel time', t2 - t1)
-# time.time()
-#
-# t1 = time.time()
-# At, Bt, ct = sqp_ls_q.get_TV_matrices(x_trj, u_trj)
-# # At1, Bt1, ct1 = sqp_ls_q.get_TV_matrices(x_trj, u_trj)
-# t2 = time.time()
-# print('single-thread time', (t2 - t1))
-
-#%%
-t0 = time.time()
-irs_lqr_q.iterate(num_iters)
 t1 = time.time()
 
 print(f"iterate took {t1 - t0} seconds.")
@@ -215,5 +189,3 @@ plt.xlabel('Iterations')
 plt.legend()
 plt.grid(True)
 plt.show()
-
-
