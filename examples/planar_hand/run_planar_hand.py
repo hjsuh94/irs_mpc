@@ -125,7 +125,6 @@ params.R_dict = {
     idx_a_l: 1.0 * np.array([1, 1]),
     idx_a_r: 1.0 * np.array([1, 1])}
 
-
 xd_dict = {idx_u: q_u0 + np.array([0.4, -0.1, 0]),
            idx_a_l: qa_l_knots[0],
            idx_a_r: qa_r_knots[0]}

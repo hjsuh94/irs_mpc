@@ -20,7 +20,7 @@ object_sdf_dict = {object_name: object_sdf_path}
 
 # environment
 h = 0.1
-gravity = np.array([0, 0, -1.])
+gravity = np.array([0, 0, -10.])
 contact_detection_tolerance = 10.0
 gradient_lstsq_tolerance = 1e-3
 

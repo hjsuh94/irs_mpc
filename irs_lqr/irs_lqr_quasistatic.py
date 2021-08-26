@@ -214,11 +214,10 @@ class IrsLqrQuasistatic:
             At[t] = ABhat_list[t, :, :self.dim_x]
             Bt[t] = ABhat_list[t, :, self.dim_x:]
 
-            if self.decouple_AB:
-                At[t, self.indices_u_into_x, :] = 0.0
-                At[t, :, self.indices_u_into_x] = 0.0
-                Bt[t, self.indices_u_into_x, :] = 0.0
+        if self.decouple_AB:
+            At, Bt = self.decouple_AB_matrices(At, Bt)
 
+        for t in range(T):
             x_next_nominal = self.q_dynamics.dynamics(x_trj[t], u_trj[t])
             ct[t] = x_next_nominal - At[t].dot(x_trj[t]) - Bt[t].dot(u_trj[t])
 
@@ -261,10 +260,8 @@ class IrsLqrQuasistatic:
             At[t_list] = ABhat[:, :, :self.dim_x]
             Bt[t_list] = ABhat[:, :, self.dim_x:]
 
-            if self.decouple_AB:
-                At[t_list, self.indices_u_into_x, :] = 0.0
-                At[t_list, :, self.indices_u_into_x] = 0.0
-                Bt[t_list, self.indices_u_into_x, :] = 0.0
+        if self.decouple_AB:
+            At, Bt = self.decouple_AB_matrices(At, Bt)
 
         # compute ct
         for t in range(T):
@@ -272,6 +269,16 @@ class IrsLqrQuasistatic:
             ct[t] = x_next_nominal - At[t].dot(x_trj[t]) - Bt[t].dot(u_trj[t])
 
         return At, Bt, ct
+
+    def decouple_AB_matrices(self, At, Bt):
+        """
+        Receives a list containing At and Bt matrices and decouples the
+        off-diagonal entries corresponding to 0.0.
+        """
+        At[:, self.indices_u_into_x, :] = 0.0
+        At[:, :, self.indices_u_into_x] = 0.0
+        Bt[:, self.indices_u_into_x, :] = 0.0
+        return At, Bt
 
     def local_descent(self, x_trj, u_trj):
         """
