@@ -120,12 +120,12 @@ params.Q_dict = {
     idx_u: np.array([10, 10, 0.0]),
     idx_a_l: np.array([0.0, 0.0]),
     idx_a_r: np.array([0.0, 0.0])}
-params.Qd_dict = {model: Q_i * 1 for model, Q_i in params.Q_dict.items()}
+params.Qd_dict = {model: Q_i * 100 for model, Q_i in params.Q_dict.items()}
 params.R_dict = {
-    idx_a_l: 1.0 * np.array([1, 1]),
-    idx_a_r: 1.0 * np.array([1, 1])}
+    idx_a_l: 1e2 * np.array([1, 1]),
+    idx_a_r: 1e2 * np.array([1, 1])}
 
-xd_dict = {idx_u: q_u0 + np.array([0.4, -0.1, 0]),
+xd_dict = {idx_u: q_u0 + np.array([0.3, 0.0, 0]),
            idx_a_l: qa_l_knots[0],
            idx_a_r: qa_r_knots[0]}
 xd = q_dynamics.get_x_from_q_dict(xd_dict)
