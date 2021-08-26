@@ -20,13 +20,8 @@ class MbpDynamics(DynamicalSystem):
         object_sdf_paths: Dict[str, str],
         sim_params: QuasistaticSimParameters):
         super().__init__()
-        """
-        Prerequisites for using MBP dynamics.
-        1. q_sim_py has internal_vis to True.
-        2. q_sim_py_ad has internal_vis to False, since Meshcat cannot be 
-           autodiffed as a diagram.
-        """
-        self.h = h 
+
+        self.h = h
         self.model_directive_path = model_directive_path
         self.robot_stiffness_dict = robot_stiffness_dict
         self.object_sdf_paths = object_sdf_paths

@@ -105,7 +105,6 @@ class QuasistaticDynamics(DynamicalSystem):
                           Q_dict: Dict[ModelInstanceIndex, np.ndarray]):
         Q = np.eye(self.dim_x)
         for model, idx in self.velocity_indices.items():
-            print(idx)
             Q[idx, idx] = Q_dict[model]
         return Q
 
