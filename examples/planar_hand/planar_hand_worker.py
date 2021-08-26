@@ -85,11 +85,7 @@ if __name__ == "__main__":
     p_list = []
     try:
         lock = multiprocessing.Lock()
-<<<<<<< HEAD:examples/quasistatic/dynamics_gradient_worker.py
-        for _ in range(30):
-=======
         for _ in range(num_workers):
->>>>>>> 02509d2f70c4593bf4e80dab7960febd7f681af3:examples/planar_hand/planar_hand_worker.py
             p = multiprocessing.Process(target=f_worker, args=(lock,))
             p_list.append(p)
             p.start()

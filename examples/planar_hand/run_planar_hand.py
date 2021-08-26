@@ -42,7 +42,7 @@ q_robot_r_traj = PiecewisePolynomial.ZeroOrderHold(
 q_a_traj_dict_str = {robot_l_name: q_robot_l_traj,
                      robot_r_name: q_robot_r_traj}
 
-q_u0 = np.array([0, 0.5, 0])
+q_u0 = np.array([0, 0.35, 0])
 
 q0_dict_str = {object_name: q_u0,
                robot_l_name: qa_l_knots[0],
@@ -85,7 +85,6 @@ u_traj_0 = np.zeros((T, dim_u))
 
 x = np.copy(x0)
 
-print(x)
 
 q_dict_traj = [q0_dict]
 for i in range(T):
@@ -113,7 +112,6 @@ for i in range(T):
 
 
 q_sim_py.animate_system_trajectory(h, q_dict_traj)
-
 #%%
 
 params = IrsLqrQuasistaticParameters()
@@ -126,7 +124,7 @@ params.R_dict = {
     idx_a_l: 1.0 * np.array([1, 1]),
     idx_a_r: 1.0 * np.array([1, 1])}
 
-xd_dict = {idx_u: q_u0 + np.array([0.0, 0.0, -np.pi/4]),
+xd_dict = {idx_u: q_u0 + np.array([0.4, -0.1, 0]),
            idx_a_l: qa_l_knots[0],
            idx_a_r: qa_r_knots[0]}
 xd = q_dynamics.get_x_from_q_dict(xd_dict)
@@ -182,7 +180,7 @@ ABhat0 = q_dynamics.calc_B_zero_order(x, u, 100, std_u=std_u)
 
 #%%
 t0 = time.time()
-irs_lqr_q.iterate(10)
+irs_lqr_q.iterate(30)
 t1 = time.time()
 
 print(f"iterate took {t1 - t0} seconds.")
