@@ -85,7 +85,6 @@ u_traj_0 = np.zeros((T, dim_u))
 
 x = np.copy(x0)
 
-
 q_dict_traj = [q0_dict]
 for i in range(T):
     # print('--------------------------------')
@@ -112,6 +111,8 @@ for i in range(T):
 
 
 q_sim_py.animate_system_trajectory(h, q_dict_traj)
+
+
 #%%
 
 params = IrsLqrQuasistaticParameters()
