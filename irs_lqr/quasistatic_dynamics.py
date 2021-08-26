@@ -196,8 +196,6 @@ class QuasistaticDynamics(DynamicalSystem):
         """
         # np.random.seed(2021)
         du = np.random.normal(0, std_u, size=[n_samples, self.dim_u])
-        #du_neg = -np.copy(du)
-        #du = np.vstack((du, du_neg))
         ABhat = np.zeros((self.dim_x, self.dim_x + self.dim_u))
         for i in range(n_samples):
             self.dynamics(x_nominal, u_nominal + du[i], requires_grad=True)

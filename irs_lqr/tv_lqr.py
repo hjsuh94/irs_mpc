@@ -5,7 +5,7 @@ from pydrake.all import (
     SnoptSolver,
     ClpSolver,
     GurobiSolver,
-    eq, le, ge)
+    eq)
 
 
 def get_solver(solver_name: str):
