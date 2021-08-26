@@ -29,6 +29,6 @@ gradient_mode = "exact"
 decouple_AB = True
 
 # num_workers
-use_workers = False
+use_workers = True
 num_workers = 30
 task_stride = 1

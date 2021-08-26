@@ -8,7 +8,7 @@ from quasistatic_simulator.core.quasistatic_system import (
 
 try:
     from irs_lqr.quasistatic_dynamics import *
-    from irs_lqr.mbp_dynamics import *
+    from irs_lqr.mbp_dynamics_position import *
     from zmq_parallel_cmp.array_io import *
 except ImportError:
     from irs_lqr.irs_lqr.quasistatic_dynamics import *
@@ -39,7 +39,7 @@ def f_worker(lock: multiprocessing.Lock):
         contact_detection_tolerance=contact_detection_tolerance,
         is_quasi_dynamic=True)
 
-    q_dynamics = MbpDynamics(h=h,
+    q_dynamics = MbpDynamicsPosition(h=h,
         model_directive_path=model_directive_path,
         robot_stiffness_dict=robot_stiffness_dict,
         object_sdf_paths=object_sdf_dict,

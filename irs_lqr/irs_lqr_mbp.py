@@ -222,7 +222,7 @@ class IrsLqrMbp:
 
         # compute ct
         for t in range(T):
-            x_next_nominal = self.q_dynamics.dynamics(x_trj[t], u_trj[t])
+            x_next_nominal = self.mbp_dynamics.dynamics(x_trj[t], u_trj[t])
             ct[t] = x_next_nominal - At[t].dot(x_trj[t]) - Bt[t].dot(u_trj[t])
 
         return At, Bt, ct

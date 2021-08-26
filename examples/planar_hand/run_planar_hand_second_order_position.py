@@ -49,11 +49,12 @@ q0_dict_str = {object_name: q_u0,
                robot_l_name: qa_l_knots[0],
                robot_r_name: qa_r_knots[0]}
 
-mbp_dynamics = MbpDynamicsPosition(h=0.1, 
+mbp_dynamics = MbpDynamicsPosition(h=h, 
     model_directive_path=model_directive_path,
     robot_stiffness_dict=robot_stiffness_dict,
     object_sdf_paths=object_sdf_dict,
-    sim_params=sim_params)
+    sim_params=sim_params,
+    internal_vis=True)
 
 idx_a_l = mbp_dynamics.plant.GetModelInstanceByName(robot_l_name)
 idx_a_r = mbp_dynamics.plant.GetModelInstanceByName(robot_r_name)
@@ -123,7 +124,7 @@ params.sampling = sampling
 params.std_u_initial = np.ones(dim_u) * 0.4
 
 params.decouple_AB = decouple_AB
-params.use_workers = False
+params.use_workers = use_workers
 params.gradient_mode = gradient_mode
 params.task_stride = task_stride
 

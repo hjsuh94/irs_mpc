@@ -18,7 +18,8 @@ class MbpDynamics(DynamicalSystem):
     def __init__(self, h: float, model_directive_path: str,
         robot_stiffness_dict: Dict[str, np.ndarray],
         object_sdf_paths: Dict[str, str],
-        sim_params: QuasistaticSimParameters):
+        sim_params: QuasistaticSimParameters,
+        internal_vis: bool=False):
         super().__init__()
 
         self.h = h
@@ -26,6 +27,7 @@ class MbpDynamics(DynamicalSystem):
         self.robot_stiffness_dict = robot_stiffness_dict
         self.object_sdf_paths = object_sdf_paths
         self.sim_params = sim_params
+        self.internal_vis = internal_vis
 
         # The quasistatic sim is used for using convenient methods like
         # getting indices of actuated / unactuated objects.
@@ -47,7 +49,7 @@ class MbpDynamics(DynamicalSystem):
         # has a Meshcat connected. 
         self.diagram, self.plant, self.scene_graph, self.robot_models, \
             self.object_models = self.create_diagram(
-            internal_vis=True)
+            internal_vis=internal_vis)
 
         # Set up stuff related to plant.
         self.dim_x = self.plant.num_positions() + self.plant.num_velocities()
@@ -81,7 +83,8 @@ class MbpDynamics(DynamicalSystem):
         self.context_sg_ad = self.diagram_ad.GetMutableSubsystemContext(
             self.scene_graph_ad, self.context_ad)
 
-        self.context_meshcat = self.diagram.GetMutableSubsystemContext(
+        if self.internal_vis:
+            self.context_meshcat = self.diagram.GetMutableSubsystemContext(
             self.viz, self.context)
 
         # Set up simulators.
@@ -162,6 +165,8 @@ class MbpDynamics(DynamicalSystem):
         return u
 
     def publish_trajectory(self, x_traj):
+        assert(self.internal_vis, "Internal vis must be set to true to " + 
+        "use publish_trajectory.")
         qv_dict_traj = [self.get_qv_dict_from_x(x) for x in x_traj]
         self.animate_system_trajectory(h=self.h, q_dict_traj=qv_dict_traj)
 

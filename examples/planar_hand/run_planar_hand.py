@@ -48,7 +48,6 @@ q0_dict_str = {object_name: q_u0,
                robot_l_name: qa_l_knots[0],
                robot_r_name: qa_r_knots[0]}
 
-
 q_sim_py = QuasistaticSimulator(
     model_directive_path=model_directive_path,
     robot_stiffness_dict=robot_stiffness_dict,

@@ -17,9 +17,10 @@ class MbpDynamicsPosition(MbpDynamics):
     def __init__(self, h: float, model_directive_path: str,
         robot_stiffness_dict: Dict[str, np.ndarray],
         object_sdf_paths: Dict[str, str],
-        sim_params: QuasistaticSimParameters):
+        sim_params: QuasistaticSimParameters,
+        internal_vis: bool = False):
         super().__init__(h, model_directive_path, robot_stiffness_dict,
-            object_sdf_paths, sim_params)
+            object_sdf_paths, sim_params, internal_vis)
         """
         Position controlled MbpDynamics. Same implementation with MbpDynamics
         in all but the following:
