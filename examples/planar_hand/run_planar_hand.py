@@ -149,6 +149,7 @@ params.decouple_AB = decouple_AB
 params.use_workers = use_workers
 params.gradient_mode = gradient_mode
 params.task_stride = task_stride
+params.num_samples = num_samples
 
 
 irs_lqr_q = IrsLqrQuasistatic(q_dynamics=q_dynamics, params=params)
@@ -181,7 +182,7 @@ ABhat0 = q_dynamics.calc_B_zero_order(x, u, 100, std_u=std_u)
 
 #%%
 t0 = time.time()
-irs_lqr_q.iterate(30)
+irs_lqr_q.iterate(num_iters)
 t1 = time.time()
 
 print(f"iterate took {t1 - t0} seconds.")

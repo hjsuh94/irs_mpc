@@ -14,7 +14,8 @@ from quasistatic_simulator.examples.setup_simulation_diagram import (
 from quasistatic_simulator_py import (QuasistaticSimulatorCpp)
 
 from irs_lqr.quasistatic_dynamics import QuasistaticDynamics
-from irs_lqr.irs_lqr_quasistatic import IrsLqrQuasistatic
+from irs_lqr.irs_lqr_quasistatic import (
+    IrsLqrQuasistatic, IrsLqrQuasistaticParameters)
 
 from plate_pickup_setup import *
 
@@ -115,77 +116,43 @@ q_sim_py.animate_system_trajectory(h, q_dict_traj)
 
 #%%
 # gripper_x plate_x gripper_y plate_y gripper_theta plate_theta gd1 gd2
-"""
-dx_bounds = np.array([
-        np.array([-1, -1, -1, -1, -5, -5, -1, -1]),
-        np.array([1, 1, 1, 1, 5, 5, 1, 1])])
-
-du_bounds = np.array([
-        np.array([-0.05, -0.05, -0.1, -0.05, -0.05]),
-        np.array([0.05, 0.05, 0.1, 0.05, 0.05])])
-"""
-
-dx_bounds = np.array([-np.ones(dim_x) * 1, np.ones(dim_x) * 1])
-du_bounds = np.array(
-    [np.array([-0.02, -0.02, -0.02, -0.001, -0.001]),
-     np.array([0.02, 0.02, 0.02, 0.001, 0.001])])
+params = IrsLqrQuasistaticParameters()
+params.Q_dict = {
+    idx_u: np.array([100, 100, 10]),
+    idx_a: np.array([0.0, 0.0, 0.0, 0.0, 0.0])}
+params.Qd_dict = {model: Q_i * 10 for model, Q_i in params.Q_dict.items()}
+params.R_dict = {idx_a: 100 * np.array([1, 1, 1, 1, 1])}
 
 xd_dict = {idx_u: q_u0 + np.array([0.0, 0.5, 0.0]),
            idx_a: qa_knots[0]}
 xd = q_dynamics.get_x_from_q_dict(xd_dict)
 x_trj_d = np.tile(xd, (T + 1, 1))
 
-Q_dict = {idx_u: np.array([100, 100, 10]),
-          idx_a: np.array([0.0, 0.0, 0.0, 0.0, 0.0])}
+params.x0 = x0
+params.x_trj_d = x_trj_d
+params.u_trj_0 = u_traj_0
+params.T = T
 
-Qd_dict = {model: Q_i * 10 for model, Q_i in Q_dict.items()}
+params.u_bounds_rel = np.array([
+    -np.ones(dim_u) * 0.2 * h, np.ones(dim_u) * 0.2 * h])
 
-R_dict = {idx_a: 100 * np.array([1, 1, 1, 1, 1])}
+def sampling(u_initial, iter):
+    return u_initial ** (0.5 * iter)
 
-irs_lqr_q = IrsLqrQuasistatic(
-    q_dynamics=q_dynamics,
-    std_u_initial= np.array([0.05, 0.05, 0.1, 0.01, 0.01]),
-    T=T,
-    Q_dict=Q_dict,
-    Qd_dict=Qd_dict,
-    R_dict=R_dict,
-    x_trj_d=x_trj_d,
-    dx_bounds=dx_bounds,
-    du_bounds=du_bounds,
-    x0=x0,
-    u_trj_0=u_traj_0)
+params.sampling = sampling
+params.std_u_initial = np.ones(dim_u) * 0.1
 
-#%% compare zero-order and first-order gradient estimation.
-"""
-std_dict = {idx_u: np.ones(3) * 1e-3,
-            idx_a_r: np.ones(2) * 0.1,
-            idx_a_l: np.ones(2) * 0.1}
-std_x = q_dynamics.get_x_from_q_dict(std_dict)
-std_u = q_dynamics.get_u_from_q_cmd_dict(std_dict)
-ABhat1 = q_dynamics.calc_AB_first_order(x, u, 100, std_u)
-ABhat0 = q_dynamics.calc_B_zero_order(x, u, 100, std_u=std_u)
-"""
+params.decouple_AB = decouple_AB
+params.use_workers = use_workers
+params.gradient_mode = gradient_mode
+params.task_stride = task_stride
+params.num_samples = num_samples
 
-#%% test multi vs single threaded execution
-# x_trj = sqp_ls_q.x_trj
-# u_trj = sqp_ls_q.u_trj
-#
-# t1 = time.time()
-# At2, Bt2, ct2 = sqp_ls_q.get_TV_matrices_batch(x_trj, u_trj)
-# t2 = time.time()
-# print('parallel time', t2 - t1)
-# time.time()
-#
-# t1 = time.time()
-# At, Bt, ct = sqp_ls_q.get_TV_matrices(x_trj, u_trj)
-# # At1, Bt1, ct1 = sqp_ls_q.get_TV_matrices(x_trj, u_trj)
-# t2 = time.time()
-# print('single-thread time', (t2 - t1))
+irs_lqr_q = IrsLqrQuasistatic(q_dynamics=q_dynamics, params=params)
 
-#%%
 try:
     t0 = time.time()
-    irs_lqr_q.iterate(10)
+    irs_lqr_q.iterate(num_iters)
 except Exception as e:
     print(e)
     pass

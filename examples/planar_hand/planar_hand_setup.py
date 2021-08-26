@@ -32,3 +32,5 @@ decouple_AB = True
 use_workers = True
 num_workers = 30
 task_stride = 1
+num_iters = 30
+num_samples = 100
