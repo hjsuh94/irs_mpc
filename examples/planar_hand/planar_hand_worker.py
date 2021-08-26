@@ -64,11 +64,12 @@ def f_worker(lock: multiprocessing.Lock):
         x_nominals = x_u_nominal[:, :q_dynamics.dim_x]
         u_nominals = x_u_nominal[:, q_dynamics.dim_x:]
 
-        ABhat = q_dynamics.calc_AB_first_order_batch(
+        ABhat = q_dynamics.calc_AB_batch(
             x_nominals=x_nominals,
             u_nominals=u_nominals,
             n_samples=n_samples,
-            std_u=std)
+            std_u=std,
+            mode=gradient_mode)
 
         # Send results to sink
         send_array(sender, A=ABhat, t=t_list, n_samples=-1, std=[-1])
@@ -84,7 +85,7 @@ if __name__ == "__main__":
     p_list = []
     try:
         lock = multiprocessing.Lock()
-        for _ in range(8):
+        for _ in range(num_workers):
             p = multiprocessing.Process(target=f_worker, args=(lock,))
             p_list.append(p)
             p.start()

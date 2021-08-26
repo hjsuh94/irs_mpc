@@ -13,12 +13,13 @@ from quasistatic_simulator.examples.setup_simulation_diagram import (
 from quasistatic_simulator_py import (QuasistaticSimulatorCpp)
 
 from irs_lqr.quasistatic_dynamics import QuasistaticDynamics
-from irs_lqr.irs_lqr_quasistatic import IrsLqrQuasistatic
+from irs_lqr.irs_lqr_quasistatic import (
+    IrsLqrQuasistatic, IrsLqrQuasistaticParameters)
 
 from planar_hand_setup import *
 
 #%% sim setup
-T = int(round(4 / h))  # num of time steps to simulate forward.
+T = int(round(6 / h))  # num of time steps to simulate forward.
 duration = T * h
 sim_params = QuasistaticSimParameters(
     gravity=gravity,
@@ -113,8 +114,16 @@ q_sim_py.animate_system_trajectory(h, q_dict_traj)
 
 
 #%%
-dx_bounds = np.array([-np.ones(dim_x) * 1, np.ones(dim_x) * 1])
-du_bounds = np.array([-np.ones(dim_u) * 0.5 * h, np.ones(dim_u) * 0.5 * h])
+
+params = IrsLqrQuasistaticParameters()
+params.Q_dict = {
+    idx_u: np.array([10, 10, 0.0]),
+    idx_a_l: np.array([0.0, 0.0]),
+    idx_a_r: np.array([0.0, 0.0])}
+params.Qd_dict = {model: Q_i * 1 for model, Q_i in params.Q_dict.items()}
+params.R_dict = {
+    idx_a_l: 1.0 * np.array([1, 1]),
+    idx_a_r: 1.0 * np.array([1, 1])}
 
 xd_dict = {idx_u: q_u0 + np.array([0.4, -0.1, 0]),
            idx_a_l: qa_l_knots[0],
@@ -122,27 +131,27 @@ xd_dict = {idx_u: q_u0 + np.array([0.4, -0.1, 0]),
 xd = q_dynamics.get_x_from_q_dict(xd_dict)
 x_trj_d = np.tile(xd, (T + 1, 1))
 
-Q_dict = {idx_u: np.array([10, 10, 0.001]),
-          idx_a_l: np.array([0.001, 0.001]),
-          idx_a_r: np.array([0.001, 0.001])}
+params.x0 = x0
+params.x_trj_d = x_trj_d
+params.u_trj_0 = u_traj_0
+params.T = T
 
-Qd_dict = {model: Q_i * 100 for model, Q_i in Q_dict.items()}
+params.u_bounds_rel = np.array([
+    -np.ones(dim_u) * 0.5 * h, np.ones(dim_u) * 0.5 * h])
 
-R_dict = {idx_a_l: np.array([1, 1]),
-          idx_a_r: np.array([1, 1])}
+def sampling(u_initial, iter):
+    return u_initial ** (0.5 * iter)
 
-irs_lqr_q = IrsLqrQuasistatic(
-    q_dynamics=q_dynamics,
-    std_u_initial=np.ones(dim_u) * 0.3,
-    T=T,
-    Q_dict=Q_dict,
-    Qd_dict=Qd_dict,
-    R_dict=R_dict,
-    x_trj_d=x_trj_d,
-    dx_bounds=dx_bounds,
-    du_bounds=du_bounds,
-    x0=x0,
-    u_trj_0=u_traj_0)
+params.sampling = sampling
+params.std_u_initial = np.ones(dim_u) * 0.3
+
+params.decouple_AB = decouple_AB
+params.use_workers = use_workers
+params.gradient_mode = gradient_mode
+params.task_stride = task_stride
+
+
+irs_lqr_q = IrsLqrQuasistatic(q_dynamics=q_dynamics, params=params)
 
 #%% compare zero-order and first-order gradient estimation.
 std_dict = {idx_u: np.ones(3) * 1e-3,
