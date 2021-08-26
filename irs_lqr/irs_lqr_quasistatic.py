@@ -371,14 +371,7 @@ class IrsLqrQuasistatic:
                 self.u_trj_best = u_trj_new
                 self.cost_best = cost
 
-
             if self.current_iter > max_iterations:
-
-                self.ABC_storage = np.array(self.ABC_storage)
-                np.save("examples/quasistatic/ABC_storage.npy", self.ABC_storage)
-
-                self.x_trj_list = np.array(self.x_trj_list)
-                np.save("examples/quasistatic/x_trj_lst.npy", self.x_trj_list)
                 break
 
             # Go over to next iteration.

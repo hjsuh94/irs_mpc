@@ -30,21 +30,19 @@ sim_params = QuasistaticSimParameters(
 # trajectory and initial conditions.
 nq_a = 2
 qa_l_knots = np.zeros((2, nq_a))
-qa_l_knots[0] = [-np.pi/4 - 0.1, -np.pi/4 - 0.1]
-#qa_l_knots[0] = [0, 0]
+qa_l_knots[0] = [-np.pi / 4, -np.pi / 4]
 q_robot_l_traj = PiecewisePolynomial.ZeroOrderHold(
     [0, T * h], qa_l_knots.T)
 
 qa_r_knots = np.zeros((2, nq_a))
-qa_r_knots[0] = [np.pi/4 + 0.1, np.pi/4 + 0.1]
-#qa_r_knots[0] = [0, 0]
+qa_r_knots[0] = [np.pi / 4, np.pi / 4]
 q_robot_r_traj = PiecewisePolynomial.ZeroOrderHold(
     [0, T * h], qa_r_knots.T)
 
 q_a_traj_dict_str = {robot_l_name: q_robot_l_traj,
                      robot_r_name: q_robot_r_traj}
 
-q_u0 = np.array([0, 0.5, 0])
+q_u0 = np.array([0, 0.35, 0])
 
 q0_dict_str = {object_name: q_u0,
                robot_l_name: qa_l_knots[0],
@@ -87,8 +85,6 @@ u_traj_0 = np.zeros((T, dim_u))
 
 x = np.copy(x0)
 
-print(x)
-
 q_dict_traj = [q0_dict]
 for i in range(T):
     # print('--------------------------------')
@@ -116,11 +112,8 @@ for i in range(T):
 
 q_sim_py.animate_system_trajectory(h, q_dict_traj)
 
+
 #%%
-<<<<<<< HEAD:examples/quasistatic/run_planar_hand.py
-dx_bounds = np.array([-np.ones(dim_x) * 1, np.ones(dim_x) * 1])
-du_bounds = 0.2 * np.array([-np.ones(dim_u) * 1.0 * h, np.ones(dim_u) * 1.0 * h])
-=======
 
 params = IrsLqrQuasistaticParameters()
 params.Q_dict = {
@@ -131,37 +124,13 @@ params.Qd_dict = {model: Q_i * 1 for model, Q_i in params.Q_dict.items()}
 params.R_dict = {
     idx_a_l: 1.0 * np.array([1, 1]),
     idx_a_r: 1.0 * np.array([1, 1])}
->>>>>>> 02509d2f70c4593bf4e80dab7960febd7f681af3:examples/planar_hand/run_planar_hand.py
 
-xd_dict = {idx_u: q_u0 + np.array([0.0, 0.0, -np.pi/4]),
+xd_dict = {idx_u: q_u0 + np.array([0.4, -0.1, 0]),
            idx_a_l: qa_l_knots[0],
            idx_a_r: qa_r_knots[0]}
 xd = q_dynamics.get_x_from_q_dict(xd_dict)
 x_trj_d = np.tile(xd, (T + 1, 1))
 
-<<<<<<< HEAD:examples/quasistatic/run_planar_hand.py
-Q_dict = {idx_u: np.array([50, 50, 20]),
-          idx_a_l: np.array([0.0, 0.0]),
-          idx_a_r: np.array([0.0, 0.0])}
-
-Qd_dict = {model: Q_i * 1 for model, Q_i in Q_dict.items()}
-
-R_dict = {idx_a_l: 1e1 * np.array([1, 1]),
-          idx_a_r: 1e1 * np.array([1, 1])}
-
-irs_lqr_q = IrsLqrQuasistatic(
-    q_dynamics=q_dynamics,
-    std_u_initial= np.ones(dim_u) * 0.3,
-    T=T,
-    Q_dict=Q_dict,
-    Qd_dict=Qd_dict,
-    R_dict=R_dict,
-    x_trj_d=x_trj_d,
-    dx_bounds=dx_bounds,
-    du_bounds=du_bounds,
-    x0=x0,
-    u_trj_0=u_traj_0)
-=======
 params.x0 = x0
 params.x_trj_d = x_trj_d
 params.u_trj_0 = u_traj_0
@@ -183,7 +152,6 @@ params.task_stride = task_stride
 
 
 irs_lqr_q = IrsLqrQuasistatic(q_dynamics=q_dynamics, params=params)
->>>>>>> 02509d2f70c4593bf4e80dab7960febd7f681af3:examples/planar_hand/run_planar_hand.py
 
 #%% compare zero-order and first-order gradient estimation.
 std_dict = {idx_u: np.ones(3) * 1e-3,
@@ -213,7 +181,7 @@ ABhat0 = q_dynamics.calc_B_zero_order(x, u, 100, std_u=std_u)
 
 #%%
 t0 = time.time()
-irs_lqr_q.iterate(10)
+irs_lqr_q.iterate(30)
 t1 = time.time()
 
 print(f"iterate took {t1 - t0} seconds.")
