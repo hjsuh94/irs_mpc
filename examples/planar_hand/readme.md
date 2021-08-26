@@ -2,7 +2,7 @@
 
 1. Launch gradient works (should work from any directory):
 ```bash
-python3 path_to_irs_lqr/examples/quasistatic/dynamics_gradient_worker.py
+python3 path_to_irs_lqr/examples/quasistatic/planar_hand_worker.py
 ```
 The number of workers is hard coded in the `__main__` part of the script.
 

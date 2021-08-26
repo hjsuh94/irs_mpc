@@ -115,7 +115,8 @@ class QuasistaticDynamics(DynamicalSystem):
         for model in self.models_actuated:
             n_v_i = self.plant.num_velocities(model)
             R[i_start: i_start + n_v_i, i_start: i_start + n_v_i] = \
-                R_dict[model]
+                np.diag(R_dict[model])
+            i_start += n_v_i
         return R
 
     def publish_trajectory(self, x_traj):
@@ -206,19 +207,33 @@ class QuasistaticDynamics(DynamicalSystem):
         ABhat /= n_samples
         return ABhat
 
-    def calc_AB_first_order_batch(
+    def calc_AB_batch(
             self, x_nominals: np.ndarray, u_nominals: np.ndarray,
-            n_samples: int, std_u: Union[np.ndarray, float]):
+            n_samples: int, std_u: Union[np.ndarray, float], mode: str):
         """
         x_nominals: (n, n_x) array, n states.
         u_nominals: (n, n_u) array, n inputs.
+        mode: "first_order", "zero_order_B", "zero_order_AB", or "exact."
         """
         n = x_nominals.shape[0]
         ABhat_list = np.zeros((n, self.dim_x, self.dim_x + self.dim_u))
 
-        for i in range(n):
-            ABhat_list[i] = self.calc_B_zero_order(
-                x_nominals[i], u_nominals[i], n_samples, std_u)
+        if mode == "first_order":
+            for i in range(n):
+                ABhat_list[i] = self.calc_AB_first_order(
+                    x_nominals[i], u_nominals[i], n_samples, std_u)
+        elif mode == "zero_order_B":
+            for i in range(n):
+                ABhat_list[i] = self.calc_B_zero_order(
+                    x_nominals[i], u_nominals[i], n_samples, std_u)
+        elif mode == "zero_order_AB":
+            for i in range(n):
+                ABhat_list[i] = self.calc_AB_zero_order(
+                    x_nominals[i], u_nominals[i], n_samples, std_u)                    
+        elif mode == "exact":
+            for i in range(n):
+                ABhat_list[i] = self.calc_AB_exact(
+                    x_nominals[i], u_nominals[i])
 
         return ABhat_list
 
@@ -230,6 +245,7 @@ class QuasistaticDynamics(DynamicalSystem):
         :param std_u: standard deviation of the normal distribution when
             sampling u.
         """
+
         n_x = self.dim_x
         n_u = self.dim_u
         x_next_nominal = self.dynamics(
