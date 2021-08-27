@@ -109,6 +109,7 @@ def solve_tvlqr(At, Bt, ct, Q, Qd, R, x0, x_trj_d, solver, indices_u_into_x=None
         else:
             prog.AddQuadraticCost(R, np.zeros(n_u), ut[t,:])
 
+
         # Add constraints.
         if x_bound_abs is not None:
             prog.AddBoundingBoxConstraint(

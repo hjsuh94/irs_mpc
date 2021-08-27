@@ -17,7 +17,7 @@ from irs_lqr.irs_lqr_quasistatic import (
     IrsLqrQuasistatic, IrsLqrQuasistaticParameters)
 from irs_lqr.irs_lqr_mbp_position import IrsLqrMbpPosition
 
-from planar_hand_setup import *
+from box_pushing_setup import *
 
 #%% sim setup
 T = int(round(6 / h))  # num of time steps to simulate forward.
@@ -29,25 +29,27 @@ sim_params = QuasistaticSimParameters(
     is_quasi_dynamic=True)
 
 # trajectory and initial conditions.
-nq_a = 4
-qa_l_knots = np.zeros((2, nq_a))
-qa_l_knots[0] = [-np.pi / 4, -np.pi / 4, 0, 0]
-q_robot_l_traj = PiecewisePolynomial.ZeroOrderHold(
-    [0, T * h], qa_l_knots.T)
+# trajectory and initial conditions.
+nq_a = 2
+qa_knots = np.zeros((2, nq_a))
+qa_knots[0] = [0.0, -0.2]
+qa_knots[1] = [0.0, 0.2]
+q_robot_traj = PiecewisePolynomial.FirstOrderHold(
+    [0, T * h], qa_knots.T)
 
-qa_r_knots = np.zeros((2, nq_a))
-qa_r_knots[0] = [np.pi / 4, np.pi / 4, 0, 0]
-q_robot_r_traj = PiecewisePolynomial.ZeroOrderHold(
-    [0, T * h], qa_r_knots.T)
+nqv_a = 4
+qva_knots = np.zeros((2, nqv_a))
+qva_knots[0] = [0.0, -0.2, 0.0, 0.0]
+qva_knots[1] = [0.0, 0.2, 0.0, 0.0]
 
-q_a_traj_dict_str = {robot_l_name: q_robot_l_traj,
-                     robot_r_name: q_robot_r_traj}
+robot_name = "hand"
+object_name = "box"
+q_a_traj_dict_str = {robot_name: q_robot_traj}
 
-q_u0 = np.array([0, 0.35, 0, 0, 0, 0])
+q_u0 = np.array([0.0, 0.5, 0.5, 0.0, 0.0, 0.0])
 
 q0_dict_str = {object_name: q_u0,
-               robot_l_name: qa_l_knots[0],
-               robot_r_name: qa_r_knots[0]}
+               robot_name: qva_knots[0]}
 
 mbp_dynamics = MbpDynamicsPosition(h=h, 
     model_directive_path=model_directive_path,
@@ -56,56 +58,53 @@ mbp_dynamics = MbpDynamicsPosition(h=h,
     sim_params=sim_params,
     internal_vis=True)
 
-idx_a_l = mbp_dynamics.plant.GetModelInstanceByName(robot_l_name)
-idx_a_r = mbp_dynamics.plant.GetModelInstanceByName(robot_r_name)
+idx_a = mbp_dynamics.plant.GetModelInstanceByName(robot_name)
 idx_u = mbp_dynamics.plant.GetModelInstanceByName(object_name)
 
 q0_dict = create_dict_keyed_by_model_instance_index(
     mbp_dynamics.plant, q_dict_str=q0_dict_str)
+
+print(q0_dict)
 
 #%%
 dim_x = mbp_dynamics.dim_x
 dim_u = mbp_dynamics.dim_u
 
 #%% try running the dynamics.
+print(q0_dict)
 x0 = mbp_dynamics.get_x_from_qv_dict(q0_dict)
 u_traj_0 = np.zeros((T, dim_u))
 
 x = np.copy(x0)
 
-q_dict_traj = [q0_dict]
+qv_dict_traj = [q0_dict]
 for i in range(T):
     # print('--------------------------------')
     t = h * i
-    q_cmd_dict = {idx_a_l: q_robot_l_traj.value(t + h).ravel(),
-                  idx_a_r: q_robot_r_traj.value(t + h).ravel()}
-    u = [-np.pi/4, -np.pi/4, np.pi/4, np.pi/4]
-    x = mbp_dynamics.dynamics(x, u, requires_grad=True)
+    q_cmd_dict = {idx_a: q_robot_traj.value(t + h).ravel()}
 
-    print('t={},'.format(t), 'x:', x, 'u:', u)
+    u = mbp_dynamics.get_u_from_q_cmd_dict(q_cmd_dict)
+    x = mbp_dynamics.dynamics(x, u, requires_grad=True)
     u_traj_0[i] = u
 
-    q_dict_traj.append(mbp_dynamics.get_qv_dict_from_x(x))
+    qv_dict_traj.append(mbp_dynamics.get_qv_dict_from_x(x))
 
-mbp_dynamics.animate_system_trajectory(h, q_dict_traj)
+mbp_dynamics.animate_system_trajectory(h, qv_dict_traj)
+
 
 
 #%%
 
 params = IrsLqrQuasistaticParameters()
 params.Q_dict = {
-    idx_u: np.array([10, 10, 0, 0.0, 0.0, 0.0]),
-    idx_a_l: np.array([0.0, 0.0, 0.0, 0.0]),
-    idx_a_r: np.array([0.0, 0.0, 0.0, 0.0])}
-params.Qd_dict = {model: Q_i * 100 for model, Q_i in params.Q_dict.items()}
+    idx_u: np.array([300, 300, 120, 0.0, 0.0, 0.0]),
+    idx_a: np.array([0.0, 0.0, 0.0, 0.0])}
+params.Qd_dict = {model: Q_i * 1 for model, Q_i in params.Q_dict.items()}
 params.R_dict = {
-    idx_a_l: 1e2 * np.array([1, 1]),
-    idx_a_r: 1e2 * np.array([1, 1])}
+    idx_a: 1e2 * np.array([1, 1])}
 
-
-xd_dict = {idx_u: q_u0 + np.array([0.3, 0.0, 0.0, 0, 0, 0]),
-           idx_a_l: qa_l_knots[0],
-           idx_a_r: qa_r_knots[0]}
+xd_dict = {idx_u: q_u0 + np.array([0.0, 1.0, 0.0, 0, 0, 0]),
+           idx_a: qva_knots[0]}
 xd = mbp_dynamics.get_x_from_qv_dict(xd_dict)
 x_trj_d = np.tile(xd, (T + 1, 1))
 
@@ -114,14 +113,14 @@ params.x_trj_d = x_trj_d
 params.u_trj_0 = u_traj_0
 params.T = T
 
-params.u_bounds_abs = np.array([
-    -np.ones(dim_u) * 0.5, np.ones(dim_u) * 0.5])
+params.u_bounds_rel = np.array([
+    -np.ones(dim_u) * 0.03, np.ones(dim_u) * 0.03])
 
 def sampling(u_initial, iter):
     return u_initial ** (0.5 * iter)
 
 params.sampling = sampling
-params.std_u_initial = np.ones(dim_u) * 0.4
+params.std_u_initial = np.ones(dim_u) * 0.04
 
 params.decouple_AB = decouple_AB
 params.use_workers = use_workers

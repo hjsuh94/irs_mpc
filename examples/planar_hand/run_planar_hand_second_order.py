@@ -124,14 +124,15 @@ params.sampling = sampling
 params.std_u_initial = np.ones(dim_u) * 0.4
 
 params.decouple_AB = decouple_AB
-params.use_workers = False
+params.use_workers = use_workers
 params.gradient_mode = gradient_mode
 params.task_stride = task_stride
+params.num_samples = num_samples
 
 irs_lqr_q = IrsLqrMbp(mbp_dynamics, params)
 
 t0 = time.time()
-irs_lqr_q.iterate(5)
+irs_lqr_q.iterate(num_iters)
 t1 = time.time()
 
 print(f"iterate took {t1 - t0} seconds.")
