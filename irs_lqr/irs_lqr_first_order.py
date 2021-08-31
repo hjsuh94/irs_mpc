@@ -2,6 +2,7 @@ import numpy as np
 
 from irs_lqr.irs_lqr import IrsLqr
 
+
 class IrsLqrFirstOrder(IrsLqr):
     def __init__(self, system, params, sampling):
         super().__init__(system, params)
@@ -46,8 +47,8 @@ class IrsLqrFirstOrder(IrsLqr):
             # Average across batch dim to get estimates.
             ABhat = np.mean(AB_batch, axis=0)
 
-            At[t] = ABhat[:,0:self.dim_x]
-            Bt[t] = ABhat[:,self.dim_x:self.dim_x+self.dim_u]
+            At[t] = ABhat[:, 0:self.dim_x]
+            Bt[t] = ABhat[:, self.dim_x:self.dim_x + self.dim_u]
             ct[t] = self.system.dynamics(x_trj[t], u_trj[t]) - At[t].dot(
                 x_trj[t]) - Bt[t].dot(u_trj[t])
         return At, Bt, ct
