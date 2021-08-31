@@ -181,8 +181,7 @@ class IrsLqr:
                 u_bound_abs=u_bounds_abs[:, t:, :] if(
                     self.ubound is not None) else None)
             u_trj_new[t, :] = u_star[0]
-            x_trj_new[t + 1, :] = self.system.dynamics(
-                x_trj_new[t, :], u_trj_new[t, :])
+            x_trj_new[t + 1, :] = self.system.dynamics(x_trj_new[t, :], u_trj_new[t, :])
 
         return x_trj_new, u_trj_new
 

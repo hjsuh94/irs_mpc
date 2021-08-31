@@ -86,16 +86,18 @@ x = np.copy(x0)
 
 q_dict_traj = [q0_dict]
 for i in range(T):
-    # print('--------------------------------')
+    print('--------------------------------')
     t = h * i
     q_cmd_dict = {idx_a_l: q_robot_l_traj.value(t + h).ravel(),
                   idx_a_r: q_robot_r_traj.value(t + h).ravel()}
     u = q_dynamics.get_u_from_q_cmd_dict(q_cmd_dict)
-    x = q_dynamics.dynamics_py(x, u, mode='qp_mp', requires_grad=True)
+    x_next = q_dynamics.dynamics_py(x, u, mode='qp_mp', requires_grad=True,
+                               grad_from_active_constraints=True)
     Dq_nextDq = q_dynamics.q_sim_py.get_Dq_nextDq()
     Dq_nextDqa_cmd = q_dynamics.q_sim_py.get_Dq_nextDqa_cmd()
 
-    q_dynamics.dynamics(x, u, requires_grad=True)
+    q_dynamics.dynamics(x, u, requires_grad=True,
+                        grad_from_active_constraints=True)
     Dq_nextDq_cpp = q_dynamics.q_sim.get_Dq_nextDq()
     Dq_nextDqa_cmd_cpp = q_dynamics.q_sim.get_Dq_nextDqa_cmd()
 
@@ -105,7 +107,7 @@ for i in range(T):
     print('Dq_nextDqa_cmd error cpp vs python',
           np.linalg.norm(Dq_nextDqa_cmd - Dq_nextDqa_cmd_cpp))
     u_traj_0[i] = u
-
+    x_next = x
     q_dict_traj.append(q_dynamics.get_q_dict_from_x(x))
 
 

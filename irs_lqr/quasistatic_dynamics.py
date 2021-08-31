@@ -124,8 +124,9 @@ class QuasistaticDynamics(DynamicalSystem):
         self.q_sim_py.animate_system_trajectory(h=self.h,
                                                 q_dict_traj=q_dict_traj)
 
-    def dynamics_py(self, x: np.ndarray, u: np.ndarray,
-                    mode: str = 'qp_mp', requires_grad: bool = False):
+    def dynamics_py(self, x: np.ndarray, u: np.ndarray, mode: str = 'qp_mp',
+                    requires_grad: bool = False,
+                    grad_from_active_constraints: bool = False):
         """
         :param x: the position vector of self.q_sim.plant.
         :param u: commanded positions of models in
@@ -138,12 +139,13 @@ class QuasistaticDynamics(DynamicalSystem):
         self.q_sim_py.update_mbp_positions(q_dict)
         q_next_dict = self.q_sim_py.step(
             q_a_cmd_dict, tau_ext_dict, self.h,
-            mode=mode, requires_grad=requires_grad)
+            mode=mode, requires_grad=requires_grad,
+            grad_from_active_constraints=grad_from_active_constraints)
 
         return self.get_x_from_q_dict(q_next_dict)
 
-    def dynamics(self, x: np.ndarray, u: np.ndarray,
-                 requires_grad: bool = False):
+    def dynamics(self, x: np.ndarray, u: np.ndarray, requires_grad: bool = False,
+                 grad_from_active_constraints: bool = False):
         """
         :param x: the position vector of self.q_sim.plant.
         :param u: commanded positions of models in
@@ -157,7 +159,8 @@ class QuasistaticDynamics(DynamicalSystem):
         self.q_sim.step(
             q_a_cmd_dict, tau_ext_dict, self.h,
             self.q_sim_py.sim_params.contact_detection_tolerance,
-            requires_grad=requires_grad)
+            requires_grad=requires_grad,
+            grad_from_active_constraints=grad_from_active_constraints)
         q_next_dict = self.q_sim.get_mbp_positions()
         return self.get_x_from_q_dict(q_next_dict)
 
@@ -232,6 +235,8 @@ class QuasistaticDynamics(DynamicalSystem):
             for i in range(n):
                 ABhat_list[i] = self.calc_AB_exact(
                     x_nominals[i], u_nominals[i])
+        else:
+            raise RuntimeError(f"AB mode {mode} is not supported.")
 
         return ABhat_list
 
@@ -246,8 +251,7 @@ class QuasistaticDynamics(DynamicalSystem):
 
         n_x = self.dim_x
         n_u = self.dim_u
-        x_next_nominal = self.dynamics(
-            x_nominal, u_nominal, requires_grad=True)
+        x_next_nominal = self.dynamics(x_nominal, u_nominal, requires_grad=True)
         ABhat = np.zeros((n_x, n_x + n_u))
         ABhat[:, :n_x] = self.q_sim.get_Dq_nextDq()
 
