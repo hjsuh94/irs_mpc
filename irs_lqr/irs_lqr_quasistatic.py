@@ -1,5 +1,5 @@
 from typing import Dict
-import time 
+import time
 
 from pydrake.all import ModelInstanceIndex
 
@@ -7,6 +7,7 @@ from irs_lqr.quasistatic_dynamics import QuasistaticDynamics
 from irs_lqr.tv_lqr import solve_tvlqr, get_solver
 
 from zmq_parallel_cmp.array_io import *
+
 
 class IrsLqrQuasistaticParameters:
     def __init__(self):
@@ -27,7 +28,7 @@ class IrsLqrQuasistaticParameters:
 
         # Necessary arguments related to sampling.
         self.sampling = None
-        self.std_u_initial = None        
+        self.std_u_initial = None
         self.num_samples = 100
 
         # Arguments related to various options.
@@ -39,9 +40,10 @@ class IrsLqrQuasistaticParameters:
         self.task_stride = 1
         self.publish_every_iteration = True
 
+
 class IrsLqrQuasistatic:
-    def __init__(self, q_dynamics: QuasistaticDynamics, 
-        params: IrsLqrQuasistaticParameters):
+    def __init__(self, q_dynamics: QuasistaticDynamics,
+                 params: IrsLqrQuasistaticParameters):
         """
 
         Arguments are similar to those of SqpLsImplicit.
@@ -73,7 +75,7 @@ class IrsLqrQuasistatic:
         self.u_bounds_rel = params.u_bounds_rel
         self.indices_u_into_x = q_dynamics.get_u_indices_into_x()
 
-        self.decouple_AB = params.decouple_AB 
+        self.decouple_AB = params.decouple_AB
         self.use_workers = params.use_workers
         self.gradient_mode = params.gradient_mode
         self.task_stride = params.task_stride
@@ -206,7 +208,7 @@ class IrsLqrQuasistatic:
 
         # Compute ABhat.
         ABhat_list = self.q_dynamics.calc_AB_batch(
-            x_trj[:-1,:], u_trj, n_samples=self.num_samples, std_u=std_u,
+            x_trj[:-1, :], u_trj, n_samples=self.num_samples, std_u=std_u,
             mode=self.gradient_mode
         )
 
@@ -290,7 +292,7 @@ class IrsLqrQuasistatic:
         if self.use_workers:
             At, Bt, ct = self.get_TV_matrices_batch(x_trj, u_trj)
         else:
-            At, Bt, ct = self.get_TV_matrices(x_trj, u_trj) 
+            At, Bt, ct = self.get_TV_matrices(x_trj, u_trj)
 
         x_trj_new = np.zeros(x_trj.shape)
         x_trj_new[0, :] = x_trj[0, :]
@@ -326,16 +328,16 @@ class IrsLqrQuasistatic:
                 ct[t:self.T], self.Q, self.Qd,
                 self.R, x_trj_new[t, :],
                 self.x_trj_d[t:],
-                solver = self.solver,
+                solver=self.solver,
                 indices_u_into_x=self.indices_u_into_x,
-                x_bound_abs = x_bounds_abs[:, t:, :] if (
-                    self.x_bounds_abs is not None) else None,
-                u_bound_abs = u_bounds_abs[:, t:, :] if (
-                    self.u_bounds_abs is not None) else None,                
-                x_bound_rel = x_bounds_rel[:, t:, :] if (
-                    self.x_bounds_rel is not None) else None,
-                u_bound_rel = u_bounds_rel[:, t:, :] if (
-                    self.u_bounds_rel is not None) else None,
+                x_bound_abs=x_bounds_abs[:, t:, :] if (
+                        self.x_bounds_abs is not None) else None,
+                u_bound_abs=u_bounds_abs[:, t:, :] if (
+                        self.u_bounds_abs is not None) else None,
+                x_bound_rel=x_bounds_rel[:, t:, :] if (
+                        self.x_bounds_rel is not None) else None,
+                u_bound_rel=u_bounds_rel[:, t:, :] if (
+                        self.u_bounds_rel is not None) else None,
                 xinit=None,
                 uinit=None)
             u_trj_new[t, :] = u_star[0]

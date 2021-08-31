@@ -145,7 +145,7 @@ class QuasistaticDynamics(DynamicalSystem):
         return self.get_x_from_q_dict(q_next_dict)
 
     def dynamics(self, x: np.ndarray, u: np.ndarray, requires_grad: bool = False,
-                 grad_from_active_constraints: bool = False):
+                 grad_from_active_constraints: bool = True):
         """
         :param x: the position vector of self.q_sim.plant.
         :param u: commanded positions of models in

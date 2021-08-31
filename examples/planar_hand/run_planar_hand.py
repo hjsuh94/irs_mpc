@@ -19,7 +19,7 @@ from irs_lqr.irs_lqr_quasistatic import (
 from planar_hand_setup import *
 
 #%% sim setup
-T = int(round(6 / h))  # num of time steps to simulate forward.
+T = int(round(3 / h))  # num of time steps to simulate forward.
 duration = T * h
 sim_params = QuasistaticSimParameters(
     gravity=gravity,
@@ -107,7 +107,7 @@ for i in range(T):
     print('Dq_nextDqa_cmd error cpp vs python',
           np.linalg.norm(Dq_nextDqa_cmd - Dq_nextDqa_cmd_cpp))
     u_traj_0[i] = u
-    x_next = x
+    x = x_next
     q_dict_traj.append(q_dynamics.get_q_dict_from_x(x))
 
 
@@ -115,18 +115,17 @@ q_sim_py.animate_system_trajectory(h, q_dict_traj)
 
 
 #%%
-
 params = IrsLqrQuasistaticParameters()
 params.Q_dict = {
-    idx_u: np.array([10, 10, 0.0]),
-    idx_a_l: np.array([0.0, 0.0]),
-    idx_a_r: np.array([0.0, 0.0])}
+    idx_u: np.array([10, 10, 1e-3]),
+    idx_a_l: np.array([1e-3, 1e-3]),
+    idx_a_r: np.array([1e-3, 1e-3])}
 params.Qd_dict = {model: Q_i * 100 for model, Q_i in params.Q_dict.items()}
 params.R_dict = {
-    idx_a_l: 1e2 * np.array([1, 1]),
-    idx_a_r: 1e2 * np.array([1, 1])}
+    idx_a_l: 5 * np.array([1, 1]),
+    idx_a_r: 5 * np.array([1, 1])}
 
-xd_dict = {idx_u: q_u0 + np.array([0.3, 0.0, 0]),
+xd_dict = {idx_u: q_u0 + np.array([0.3, -0.1, 0]),
            idx_a_l: qa_l_knots[0],
            idx_a_r: qa_r_knots[0]}
 xd = q_dynamics.get_x_from_q_dict(xd_dict)
@@ -137,11 +136,13 @@ params.x_trj_d = x_trj_d
 params.u_trj_0 = u_traj_0
 params.T = T
 
-params.u_bounds_rel = np.array([
+params.u_bounds_abs = np.array([
     -np.ones(dim_u) * 0.5 * h, np.ones(dim_u) * 0.5 * h])
 
+
 def sampling(u_initial, iter):
-    return u_initial ** (0.5 * iter)
+    return u_initial / (iter ** 0.8)
+
 
 params.sampling = sampling
 params.std_u_initial = np.ones(dim_u) * 0.3

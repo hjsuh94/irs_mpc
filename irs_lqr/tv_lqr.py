@@ -107,8 +107,7 @@ def solve_tvlqr(At, Bt, ct, Q, Qd, R, x0, x_trj_d, solver, indices_u_into_x=None
             prog.AddQuadraticCost(du.dot(R).dot(du))
 
         else:
-            prog.AddQuadraticCost(R, np.zeros(n_u), ut[t,:])
-
+            prog.AddQuadraticCost(R, np.zeros(n_u), ut[t, :])
 
         # Add constraints.
         if x_bound_abs is not None:
@@ -129,7 +128,7 @@ def solve_tvlqr(At, Bt, ct, Q, Qd, R, x0, x_trj_d, solver, indices_u_into_x=None
 
     # Add final constraint.
     prog.AddQuadraticErrorCost(Qd, x_trj_d[T, :], xt[T, :])
-    
+
     if x_bound_abs is not None:
         prog.AddBoundingBoxConstraint(
             x_bound_abs[0, T], x_bound_abs[1, T], xt[T, :])
