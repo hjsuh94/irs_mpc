@@ -24,13 +24,13 @@ gravity = np.array([0, 0, -10.])
 contact_detection_tolerance = 10.0
 gradient_lstsq_tolerance = 1e-3
 
-# gradient mode
-gradient_mode = "first_order"
+# gradient exac
+gradient_mode = "exact"
 decouple_AB = True
 
 # num_workers
-use_workers = True
-num_workers = 20
+use_workers = False
+num_workers = 21
 task_stride = 1
-num_iters = 20
+num_iters = 10
 num_samples = 100

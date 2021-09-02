@@ -20,7 +20,7 @@ from irs_lqr.irs_lqr_mbp_position import IrsLqrMbpPosition
 from planar_hand_setup import *
 
 #%% sim setup
-T = int(round(6 / h))  # num of time steps to simulate forward.
+T = int(round(3 / h))  # num of time steps to simulate forward.
 duration = T * h
 sim_params = QuasistaticSimParameters(
     gravity=gravity,
@@ -79,7 +79,8 @@ for i in range(T):
     t = h * i
     q_cmd_dict = {idx_a_l: q_robot_l_traj.value(t + h).ravel(),
                   idx_a_r: q_robot_r_traj.value(t + h).ravel()}
-    u = [-np.pi/4, -np.pi/4, np.pi/4, np.pi/4]
+    #u = [-np.pi/4, -np.pi/4, np.pi/4, np.pi/4]
+    u = [-np.pi/2 + 0.5, -np.pi/2 + 0.5, np.pi/2 - 0.5, np.pi/2 - 0.5]
     x = mbp_dynamics.dynamics(x, u, requires_grad=True)
 
     print('t={},'.format(t), 'x:', x, 'u:', u)
@@ -94,16 +95,16 @@ mbp_dynamics.animate_system_trajectory(h, q_dict_traj)
 
 params = IrsLqrQuasistaticParameters()
 params.Q_dict = {
-    idx_u: np.array([10, 10, 0, 0.0, 0.0, 0.0]),
-    idx_a_l: np.array([0.0, 0.0, 0.0, 0.0]),
-    idx_a_r: np.array([0.0, 0.0, 0.0, 0.0])}
+    idx_u: np.array([10, 10, 1e-3, 0.0, 0.0, 0.0]),
+    idx_a_l: np.array([1e-3, 1e-3, 0.0, 0.0]),
+    idx_a_r: np.array([1e-3, 1e-3, 0.0, 0.0])}
 params.Qd_dict = {model: Q_i * 100 for model, Q_i in params.Q_dict.items()}
 params.R_dict = {
-    idx_a_l: 1e2 * np.array([1, 1]),
-    idx_a_r: 1e2 * np.array([1, 1])}
+    idx_a_l: 5 * np.array([1, 1]),
+    idx_a_r: 5 * np.array([1, 1])}
 
 
-xd_dict = {idx_u: q_u0 + np.array([0.3, 0.0, 0.0, 0, 0, 0]),
+xd_dict = {idx_u: q_u0 + np.array([0.3, -0.1, 0, 0, 0, 0]),
            idx_a_l: qa_l_knots[0],
            idx_a_r: qa_r_knots[0]}
 xd = mbp_dynamics.get_x_from_qv_dict(xd_dict)
@@ -118,10 +119,10 @@ params.u_bounds_abs = np.array([
     -np.ones(dim_u) * 0.5, np.ones(dim_u) * 0.5])
 
 def sampling(u_initial, iter):
-    return u_initial ** (0.5 * iter)
+    return u_initial / (iter ** 0.8)
 
 params.sampling = sampling
-params.std_u_initial = np.ones(dim_u) * 0.4
+params.std_u_initial = np.ones(dim_u) * 0.1
 
 params.decouple_AB = decouple_AB
 params.use_workers = use_workers
@@ -141,6 +142,9 @@ print(f"iterate took {t1 - t0} seconds.")
 # cProfile.runctx('irs_lqr_q.iterate(10)',
 #                 globals=globals(), locals=locals(),
 #                 filename='contact_first_order_stats_multiprocessing')
+
+np.savetxt("examples/planar_hand/analysis/planar_hand_spin_second_exact.csv",
+    irs_lqr_q.cost_all_list, delimiter=",")
 
 
 #%%

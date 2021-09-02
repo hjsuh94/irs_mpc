@@ -31,6 +31,7 @@ sim_params = QuasistaticSimParameters(
 nq_a = 2
 qa_l_knots = np.zeros((2, nq_a))
 qa_l_knots[0] = [-np.pi / 4, -np.pi / 4]
+
 q_robot_l_traj = PiecewisePolynomial.ZeroOrderHold(
     [0, T * h], qa_l_knots.T)
 
@@ -125,7 +126,7 @@ params.R_dict = {
     idx_a_l: 5 * np.array([1, 1]),
     idx_a_r: 5 * np.array([1, 1])}
 
-xd_dict = {idx_u: q_u0 + np.array([0.3, -0.1, 0]),
+xd_dict = {idx_u: q_u0 + np.array([0.3, -0.1, 0.0]),
            idx_a_l: qa_l_knots[0],
            idx_a_r: qa_r_knots[0]}
 xd = q_dynamics.get_x_from_q_dict(xd_dict)
@@ -193,6 +194,9 @@ print(f"iterate took {t1 - t0} seconds.")
 # cProfile.runctx('irs_lqr_q.iterate(10)',
 #                 globals=globals(), locals=locals(),
 #                 filename='contact_first_order_stats_multiprocessing')
+
+np.savetxt("examples/planar_hand/analysis/planar_hand_zero_order_B.csv",
+    irs_lqr_q.cost_all_list, delimiter=",")
 
 
 #%%
