@@ -33,13 +33,27 @@ for i in range(len(u_lst)):
     xnext_lst[i] = bundle
     xtrue_lst[i] = dynamics(0.0, u_lst[i])
 
-fig = plt.figure(figsize=(8, 3.2), dpi=200)
+#%%
+fig = plt.figure(figsize=(11, 3.2), dpi=200)
 plt.subplot(1, 2, 1)
+
+plt.tick_params(
+    axis='both', left=False, top=False, right=False, bottom=False,
+    labelleft=False, labeltop=False, labelright=False, labelbottom=False)
+
 plt.plot(u_lst, xnext_lst[:, 1], 'r--', label='bundled dynamics')
 plt.plot(u_lst, xtrue_lst[:, 1], 'r-', label='true dynamics')
-plt.legend()
-plt.xlabel(r'$u_1$')
-plt.ylabel(r'$x_2^\prime$')
+plt.axvline(1.0, label=r'$x^u_t$', color='k')
+
+plt.xlabel(r'$\tilde{x}^a_{t+1}$', fontsize=20)
+plt.ylabel(r'$x^u_{t+1}$', fontsize=20)
+
+plt.legend(loc="upper left", fontsize=20)
+plt.tight_layout()
+plt.savefig("bundle_dynamics.pdf", bbox_inches='tight', pad_inches=0.01)
+plt.show()
+
+#%%
 
 
 def dynamics_anitescu(phi):
