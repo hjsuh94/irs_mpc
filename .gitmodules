@@ -1,9 +1,0 @@
-[submodule "external/quasistatic_simulator"]
-	path = external/quasistatic_simulator
-	url = https://github.com/pangtao22/quasistatic_simulator
-[submodule "external/quasistatic_simulator_cpp"]
-	path = external/quasistatic_simulator_cpp
-	url = https://github.com/pangtao22/quasistatic_simulator_cpp
-[submodule "external/robotics_utilities"]
-	path = external/robotics_utilities
-	url = https://github.com/pangtao22/robotics_utilities

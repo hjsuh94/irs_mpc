@@ -25,12 +25,12 @@ contact_detection_tolerance = 10.0
 gradient_lstsq_tolerance = 1e-3
 
 # gradient exac
-gradient_mode = "exact"
+gradient_mode = "first_order"
 decouple_AB = True
 
 # num_workers
-use_workers = False
-num_workers = 21
+use_workers = True
+num_workers = 18
 task_stride = 1
-num_iters = 10
-num_samples = 100
+num_iters = 20
+num_samples = 50

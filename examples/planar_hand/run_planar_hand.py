@@ -4,10 +4,8 @@ import numpy as np
 
 from pydrake.all import PiecewisePolynomial
 
-from quasistatic_simulator.core.quasistatic_simulator import (
-    QuasistaticSimulator, QuasistaticSimParameters)
-from quasistatic_simulator.core.quasistatic_system import (
-    cpp_params_from_py_params)
+from qsim.simulator import QuasistaticSimulator, QuasistaticSimParameters
+from qsim.system import cpp_params_from_py_params
 from quasistatic_simulator.examples.setup_simulation_diagram import (
     create_dict_keyed_by_model_instance_index)
 from quasistatic_simulator_py import (QuasistaticSimulatorCpp)
@@ -195,8 +193,8 @@ print(f"iterate took {t1 - t0} seconds.")
 #                 globals=globals(), locals=locals(),
 #                 filename='contact_first_order_stats_multiprocessing')
 
-np.savetxt("examples/planar_hand/analysis/planar_hand_zero_order_B.csv",
-    irs_lqr_q.cost_all_list, delimiter=",")
+# np.savetxt("examples/planar_hand/analysis/planar_hand_zero_order_B.csv",
+#     irs_lqr_q.cost_all_list, delimiter=",")
 
 
 #%%
