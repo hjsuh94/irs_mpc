@@ -1,10 +1,8 @@
 import multiprocessing
 import time
 
-from quasistatic_simulator.core.quasistatic_simulator import (
-    QuasistaticSimParameters)
-from quasistatic_simulator.core.quasistatic_system import (
-    cpp_params_from_py_params)
+from qsim.simulator import QuasistaticSimParameters
+from qsim.system import cpp_params_from_py_params
 
 try:
     from irs_lqr.quasistatic_dynamics import *
