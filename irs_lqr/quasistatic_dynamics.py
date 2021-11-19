@@ -2,8 +2,7 @@ from typing import Dict, Set, Union
 
 import numpy as np
 from pydrake.all import ModelInstanceIndex, MultibodyPlant
-from quasistatic_simulator.core.quasistatic_simulator import (
-    QuasistaticSimulator)
+from qsim.simulator import QuasistaticSimulator
 from quasistatic_simulator_py import (QuasistaticSimulatorCpp)
 
 from .dynamical_system import DynamicalSystem

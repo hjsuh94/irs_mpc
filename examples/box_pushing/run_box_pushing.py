@@ -5,10 +5,8 @@ from tqdm import tqdm
 
 from pydrake.all import PiecewisePolynomial
 
-from quasistatic_simulator.core.quasistatic_simulator import (
-    QuasistaticSimulator, QuasistaticSimParameters)
-from quasistatic_simulator.core.quasistatic_system import (
-    cpp_params_from_py_params)
+from qsim.simulator import (QuasistaticSimulator, QuasistaticSimParameters)
+from qsim.system import (cpp_params_from_py_params)
 from quasistatic_simulator.examples.setup_simulation_diagram import (
     create_dict_keyed_by_model_instance_index)
 from quasistatic_simulator_py import (QuasistaticSimulatorCpp)

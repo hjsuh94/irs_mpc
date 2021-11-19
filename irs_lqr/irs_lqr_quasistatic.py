@@ -277,9 +277,10 @@ class IrsLqrQuasistatic:
         Receives a list containing At and Bt matrices and decouples the
         off-diagonal entries corresponding to 0.0.
         """
-        At[:, self.indices_u_into_x, :] = 0.0
+        # At[:, self.indices_u_into_x, :] = 0.0
+        Bt[:, self.indices_u_into_x, :] = np.eye(self.dim_u)
+        At[:] = np.eye(At.shape[1])
         At[:, :, self.indices_u_into_x] = 0.0
-        Bt[:, self.indices_u_into_x, :] = 0.0
         return At, Bt
 
     def local_descent(self, x_trj, u_trj):
