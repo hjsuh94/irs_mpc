@@ -6,9 +6,9 @@ from pydrake.all import (
     AutoDiffXd, initializeAutoDiff, autoDiffToGradientMatrix,
     DiagramBuilder, ConnectMeshcatVisualizer)
 from pydrake.systems.meshcat_visualizer import ConnectMeshcatVisualizer
-from quasistatic_simulator.core.quasistatic_simulator import (
-    QuasistaticSimulator, QuasistaticSimParameters)
-from quasistatic_simulator.core.utils import create_plant_with_robots_and_objects
+from qsim.simulator import (QuasistaticSimulator, QuasistaticSimParameters)
+from qsim.system import (cpp_params_from_py_params)
+from qsim.utils import create_plant_with_robots_and_objects
 from irs_lqr.quasistatic_dynamics import QuasistaticDynamics
 
 

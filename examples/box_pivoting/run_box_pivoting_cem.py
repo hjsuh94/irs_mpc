@@ -12,13 +12,13 @@ from quasistatic_simulator.examples.setup_simulation_diagram import (
 from quasistatic_simulator_py import (QuasistaticSimulatorCpp)
 
 from irs_lqr.quasistatic_dynamics import QuasistaticDynamics
-from irs_lqr.irs_lqr_quasistatic import (
-    IrsLqrQuasistatic, IrsLqrQuasistaticParameters)
+from irs_lqr.cem_quasistatic import (
+    CrossEntropyMethodQuasistatic, CemQuasistaticParameters)
 
-from box_pushing_setup import *
+from box_pivoting_setup import *
 
 #%% sim setup
-T = int(round(6 / h))  # num of time steps to simulate forward.
+T = int(round(12 / h))  # num of time steps to simulate forward.
 duration = T * h
 sim_params = QuasistaticSimParameters(
     gravity=gravity,
@@ -28,9 +28,10 @@ sim_params = QuasistaticSimParameters(
 
 # trajectory and initial conditions.
 nq_a = 2
+
 qa_knots = np.zeros((2, nq_a))
-qa_knots[0] = [0.0, -0.2]
-qa_knots[1] = [0.0, -0.2]
+qa_knots[0] = [-0.5, 0.5]
+qa_knots[1] = [0.5, 0.5]
 q_robot_traj = PiecewisePolynomial.FirstOrderHold(
     [0, T * h], qa_knots.T)
 
@@ -97,14 +98,14 @@ q_sim_py.animate_system_trajectory(h, q_dict_traj)
 
 #%%
 # gripper_x plate_x gripper_y plate_y gripper_theta plate_theta gd1 gd2
-params = IrsLqrQuasistaticParameters()
+params = CemQuasistaticParameters()
 params.Q_dict = {
-    idx_u: np.array([3.0, 3.0, 1.2]),
+    idx_u: np.array([5, 5, 50]),
     idx_a: np.array([0.0, 0.0])}
-params.Qd_dict = {model: Q_i * 0 for model, Q_i in params.Q_dict.items()}
-params.R_dict = {idx_a: 1e1 * np.array([1, 1])}
+params.Qd_dict = {model: Q_i * 1 for model, Q_i in params.Q_dict.items()}
+params.R_dict = {idx_a: 1e3 * np.array([1, 1])}
 
-xd_dict = {idx_u: q_u0 + np.array([0.5, 0.5, -np.pi/4]),
+xd_dict = {idx_u: q_u0 + np.array([1.0, 0.5, -np.pi/2]),
            idx_a: qa_knots[0]}
 xd = q_dynamics.get_x_from_q_dict(xd_dict)
 x_trj_d = np.tile(xd, (T + 1, 1))
@@ -114,22 +115,12 @@ params.x_trj_d = x_trj_d
 params.u_trj_0 = u_traj_0
 params.T = T
 
-params.u_bounds_rel = np.array([
-    -np.ones(dim_u) * 0.4 * h, np.ones(dim_u) * 0.4 * h])
+params.n_elite = 5
+params.batch_size = 100
+params.initial_std = 0.2
+params.publish_every_iteration = True
 
-def sampling(u_initial, iter):
-    return u_initial ** (1.0 * iter)
-
-params.sampling = sampling
-params.std_u_initial = np.ones(dim_u) * 0.3
-
-params.decouple_AB = decouple_AB
-params.use_workers = use_workers
-params.gradient_mode = gradient_mode
-params.task_stride = task_stride
-params.num_samples = num_samples
-
-irs_lqr_q = IrsLqrQuasistatic(q_dynamics=q_dynamics, params=params)
+irs_lqr_q = CrossEntropyMethodQuasistatic(q_dynamics=q_dynamics, params=params)
 
 try:
     t0 = time.time()
@@ -141,15 +132,15 @@ except Exception as e:
 t1 = time.time()
 
 print(f"iterate took {t1 - t0} seconds.")
+
 #%%
 x_traj_to_publish = irs_lqr_q.x_trj_best
 q_dynamics.publish_trajectory(x_traj_to_publish)
 print('x_goal:', xd)
 print('x_final:', x_traj_to_publish[-1])
 
-np.savetxt("examples/box_pushing/analysis/box_pushing_zero_order_new.csv",
+np.savetxt("examples/box_pivoting/analysis/box_pivoting_cem.csv",
     irs_lqr_q.cost_all_list, delimiter=",")
-
 
 #%% plot different components of the cost for all iterations.
 plt.figure()

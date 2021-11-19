@@ -4,8 +4,10 @@ import numpy as np
 
 from pydrake.all import PiecewisePolynomial
 
-from qsim.simulator import QuasistaticSimulator, QuasistaticSimParameters
-from qsim.system import cpp_params_from_py_params
+from quasistatic_simulator.core.quasistatic_simulator import (
+    QuasistaticSimulator, QuasistaticSimParameters)
+from quasistatic_simulator.core.quasistatic_system import (
+    cpp_params_from_py_params)
 from quasistatic_simulator.examples.setup_simulation_diagram import (
     create_dict_keyed_by_model_instance_index)
 from quasistatic_simulator_py import (QuasistaticSimulatorCpp)
@@ -28,20 +30,21 @@ sim_params = QuasistaticSimParameters(
 # trajectory and initial conditions.
 nq_a = 2
 qa_l_knots = np.zeros((2, nq_a))
-qa_l_knots[0] = [-np.pi / 4, -np.pi / 4]
+qa_l_knots[0] = [-np.pi / 2 + 0.5, -np.pi / 2 + 0.5]
 
 q_robot_l_traj = PiecewisePolynomial.ZeroOrderHold(
     [0, T * h], qa_l_knots.T)
 
 qa_r_knots = np.zeros((2, nq_a))
-qa_r_knots[0] = [np.pi / 4, np.pi / 4]
+qa_r_knots[0] = [np.pi / 2 - 0.5, np.pi / 2 - 0.5]
+
 q_robot_r_traj = PiecewisePolynomial.ZeroOrderHold(
     [0, T * h], qa_r_knots.T)
 
 q_a_traj_dict_str = {robot_l_name: q_robot_l_traj,
                      robot_r_name: q_robot_r_traj}
 
-q_u0 = np.array([0.0, 0.35, 0])
+q_u0 = np.array([0, 0.6, 0])
 
 q0_dict_str = {object_name: q_u0,
                robot_l_name: qa_l_knots[0],
@@ -116,17 +119,18 @@ q_sim_py.animate_system_trajectory(h, q_dict_traj)
 #%%
 params = IrsLqrQuasistaticParameters()
 params.Q_dict = {
-    idx_u: np.array([1e-3, 1e-3, 10]),
+    idx_u: np.array([10, 1, 10]),
     idx_a_l: np.array([1e-3, 1e-3]),
     idx_a_r: np.array([1e-3, 1e-3])}
-params.Qd_dict = {model: Q_i * 100 for model, Q_i in params.Q_dict.items()}
+params.Qd_dict = {model: Q_i * 10 for model, Q_i in params.Q_dict.items()}
 params.R_dict = {
-    idx_a_l: 5 * np.array([1, 1]),
-    idx_a_r: 5 * np.array([1, 1])}
+    idx_a_l: 1e2 * np.array([1, 1]),
+    idx_a_r: 1e2 * np.array([1, 1])}
 
-xd_dict = {idx_u: q_u0 + np.array([0.3, -0.1, 0.5]),
+xd_dict = {idx_u: q_u0 + np.array([0.0, -0.2, -np.pi/4]),
            idx_a_l: qa_l_knots[0],
-           idx_a_r: qa_r_knots[0]}
+           idx_a_r: qa_r_knots[0]}    
+
 xd = q_dynamics.get_x_from_q_dict(xd_dict)
 x_trj_d = np.tile(xd, (T + 1, 1))
 
@@ -136,15 +140,15 @@ params.u_trj_0 = u_traj_0
 params.T = T
 
 params.u_bounds_abs = np.array([
-    -np.ones(dim_u) * 0.5 * h, np.ones(dim_u) * 0.5 * h])
+    -np.ones(dim_u) * 1.0 * h, np.ones(dim_u) * 1.0 * h])
 
 
 def sampling(u_initial, iter):
-    return u_initial / (iter ** 0.8)
+    return u_initial / (iter ** 0.5)
 
 
 params.sampling = sampling
-params.std_u_initial = np.ones(dim_u) * 0.3
+params.std_u_initial = np.ones(dim_u) * 0.1
 
 params.decouple_AB = decouple_AB
 params.use_workers = use_workers
@@ -193,8 +197,11 @@ print(f"iterate took {t1 - t0} seconds.")
 #                 globals=globals(), locals=locals(),
 #                 filename='contact_first_order_stats_multiprocessing')
 
-# np.savetxt("examples/planar_hand/analysis/planar_hand_zero_order_B.csv",
-#     irs_lqr_q.cost_all_list, delimiter=",")
+#np.savetxt("examples/planar_hand/analysis/planar_hand_spin_exact.csv",
+#    irs_lqr_q.cost_all_list, delimiter=",")
+np.save("examples/planar_hand/analysis/planar_hand_exact_trj_spin.npy",
+    irs_lqr_q.x_trj)    
+
 
 
 #%%
