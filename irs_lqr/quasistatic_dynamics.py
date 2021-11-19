@@ -163,6 +163,17 @@ class QuasistaticDynamics(DynamicalSystem):
         q_next_dict = self.q_sim.get_mbp_positions()
         return self.get_x_from_q_dict(q_next_dict)
 
+    def dynamics_more_steps(self, x: np.ndarray, u: np.ndarray,
+                            n_steps: int):
+        """
+        Instead of simulate the dynamics in one
+
+        :param x: the position vector of self.q_sim.plant.
+        :param u: commanded positions of models in
+            self.q_sim.models_actuated, concatenated into one vector.
+        """
+        pass
+
     def dynamics_batch(self, x, u):
         """
         Batch dynamics. Uses pytorch for
@@ -207,6 +218,7 @@ class QuasistaticDynamics(DynamicalSystem):
         ABhat /= n_samples
         return ABhat
 
+    # TODO: rename this to calc_AB?
     def calc_AB_batch(
             self, x_nominals: np.ndarray, u_nominals: np.ndarray,
             n_samples: int, std_u: Union[np.ndarray, float], mode: str):
