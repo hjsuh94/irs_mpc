@@ -29,7 +29,7 @@ sim_params = QuasistaticSimParameters(
 # robot
 robot_name = "hand"
 nq_a = 2
-q_a0 = np.array([0.5, -0.15])
+q_a0 = np.array([0., -0.1])
 
 # box
 object_name = "box"
@@ -73,7 +73,7 @@ du = np.random.rand(n_samples, n_a) * radius - radius / 2
 x0 = q_dynamics.get_x_from_q_dict(q0_dict)
 for i in tqdm(range(n_samples)):
     u = q_dynamics.get_u_from_q_cmd_dict({idx_a: q_a0 + du[i]})
-    x = q_dynamics.dynamics(x0, u, requires_grad=False)
+    x = q_dynamics.dynamics_more_steps(x0, u, n_steps=10)
     q_dict = q_dynamics.get_q_dict_from_x(x)
 
     qu_samples[i] = q_dict[idx_u]
@@ -91,6 +91,6 @@ plt.show()
 
 viz['/qu_samples'].set_object(
     meshcat.geometry.PointCloud(
-        position=qu_samples.T, color=np.ones_like(qu_samples).T))
+        position=qu_samples.T, color=np.ones_like(qu_samples).T * 0.5))
 
 

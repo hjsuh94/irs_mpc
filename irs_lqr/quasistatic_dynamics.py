@@ -1,7 +1,8 @@
 from typing import Dict, Set, Union
 
 import numpy as np
-from pydrake.all import ModelInstanceIndex, MultibodyPlant
+from pydrake.all import (ModelInstanceIndex, MultibodyPlant,
+                         PiecewisePolynomial)
 from qsim.simulator import QuasistaticSimulator
 from quasistatic_simulator_py import (QuasistaticSimulatorCpp)
 
@@ -132,10 +133,11 @@ class QuasistaticDynamics(DynamicalSystem):
             self.q_sim.models_actuated, concatenated into one vector.
         """
         q_dict = self.get_q_dict_from_x(x)
+        self.q_sim_py.update_mbp_positions(q_dict)
+
         q_a_cmd_dict = self.get_q_a_cmd_dict_from_u(u)
         tau_ext_dict = self.q_sim_py.calc_tau_ext([])
 
-        self.q_sim_py.update_mbp_positions(q_dict)
         q_next_dict = self.q_sim_py.step(
             q_a_cmd_dict, tau_ext_dict, self.h,
             mode=mode, requires_grad=requires_grad,
@@ -151,10 +153,10 @@ class QuasistaticDynamics(DynamicalSystem):
             self.q_sim.models_actuated, concatenated into one vector.
         """
         q_dict = self.get_q_dict_from_x(x)
+        self.q_sim.update_mbp_positions(q_dict)
         q_a_cmd_dict = self.get_q_a_cmd_dict_from_u(u)
         tau_ext_dict = self.q_sim.calc_tau_ext([])
 
-        self.q_sim.update_mbp_positions(q_dict)
         self.q_sim.step(
             q_a_cmd_dict, tau_ext_dict, self.h,
             self.q_sim_py.sim_params.contact_detection_tolerance,
@@ -166,13 +168,36 @@ class QuasistaticDynamics(DynamicalSystem):
     def dynamics_more_steps(self, x: np.ndarray, u: np.ndarray,
                             n_steps: int):
         """
-        Instead of simulate the dynamics in one
+        Instead of commanding u in one step self.h, this function
+        interpolates the control input between x[index_to_u] and u,
+        and simulates to self.h using a smaller time step u/n_steps.
 
         :param x: the position vector of self.q_sim.plant.
         :param u: commanded positions of models in
             self.q_sim.models_actuated, concatenated into one vector.
         """
-        pass
+        q_dict = self.get_q_dict_from_x(x)
+        self.q_sim.update_mbp_positions(q_dict)
+
+        u0 = self.get_u_from_q_cmd_dict(q_dict)
+        u_traj = PiecewisePolynomial.FirstOrderHold(
+            [0, self.h], np.vstack([u0, u]).T)
+        h_small = self.h / n_steps
+
+        for i in range(1, n_steps + 1):
+            t = i / n_steps * self.h
+            u_t = u_traj.value(t).ravel()
+            qa_dict = self.get_q_a_cmd_dict_from_u(u_t)
+            tau_ext_dict = self.q_sim.calc_tau_ext([])
+
+            self.q_sim.step(
+                qa_dict, tau_ext_dict, h_small,
+                self.q_sim_py.sim_params.contact_detection_tolerance,
+                requires_grad=False,
+                grad_from_active_constraints=True)
+
+        q_next_dict = self.q_sim.get_mbp_positions()
+        return self.get_x_from_q_dict(q_next_dict)
 
     def dynamics_batch(self, x, u):
         """

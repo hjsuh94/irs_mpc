@@ -30,12 +30,12 @@ sim_params = QuasistaticSimParameters(
 robot_l_name = "arm_left"
 robot_r_name = "arm_right"
 nq_a = 4
-q_al0 = np.array([-np.pi / 4, -np.pi / 4])
-q_ar0 = np.array([np.pi / 4, np.pi / 4])
+q_al0 = np.array([-0.77459643, -0.78539816])
+q_ar0 = np.array([0.77459643, 0.78539816])
 
 # box
 object_name = "sphere"
-q_u0 = np.array([0.0, 0.5, 0.0])
+q_u0 = np.array([0.0, 0.317, 0.0])
 
 q0_dict_str = {object_name: q_u0,
                robot_l_name: q_al0,
@@ -69,7 +69,7 @@ q0_dict = create_dict_keyed_by_model_instance_index(
 
 
 #%% generate samples
-n_samples = 1000
+n_samples = 10000
 radius = 0.1
 qu_samples = np.zeros((n_samples, n_u))
 qa_l_samples = np.zeros((n_samples, 2))
@@ -81,7 +81,8 @@ u0 = q_dynamics.get_u_from_q_cmd_dict(q0_dict)
 
 for i in tqdm(range(n_samples)):
     u = u0 + du[i]
-    x = q_dynamics.dynamics(x0, u, requires_grad=False)
+    # x = q_dynamics.dynamics(x0, u, requires_grad=False)
+    x = q_dynamics.dynamics_more_steps(x0, u, n_steps=10)
     q_dict = q_dynamics.get_q_dict_from_x(x)
 
     qu_samples[i] = q_dict[model_u]
@@ -99,8 +100,9 @@ for ax in axes:
     ax.grid(True)
 plt.show()
 
-viz['/qu_samples'].set_object(
+viz['qu_samples_2'].set_object(
     meshcat.geometry.PointCloud(
-        position=qu_samples.T, color=np.ones_like(qu_samples).T))
+        position=(qu_samples - qu_samples.mean(axis=0)).T * 10,
+        color=np.ones_like(qu_samples).T))
 
 
