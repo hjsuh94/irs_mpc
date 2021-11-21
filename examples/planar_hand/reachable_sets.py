@@ -107,7 +107,8 @@ for i in tqdm(range(n_samples)):
 
 
 #%% visualize plotly
-layout = go.Layout(scene=dict(aspectmode='data'))
+layout = go.Layout(scene=dict(aspectmode='data'),
+                   )
 data_1_step = go.Scatter3d(x=qu_samples['1_step'][:, 0],
                            y=qu_samples['1_step'][:, 1],
                            z=qu_samples['1_step'][:, 2],
@@ -125,6 +126,10 @@ data_multi = go.Scatter3d(x=qu_samples['multi_step'][:, 0],
 
 fig = go.Figure(data=[data_1_step, data_multi],
                 layout=layout)
+fig.update_scenes(camera_projection_type='orthographic',
+                  xaxis_title_text='y',
+                  yaxis_title_text='z',
+                  zaxis_title_text='theta')
 fig.show()
 
 
