@@ -2,6 +2,10 @@ import numpy as np
 from tqdm import tqdm
 import meshcat
 import matplotlib.pyplot as plt
+import plotly.express as px
+import pandas as pd
+import plotly.graph_objects as go
+import plotly.io as pio
 
 from qsim.simulator import (QuasistaticSimulator, QuasistaticSimParameters)
 from qsim.system import (cpp_params_from_py_params)
@@ -17,6 +21,7 @@ from planar_hand_setup import (object_sdf_path, model_directive_path, Kp,
                                gradient_lstsq_tolerance)
 
 viz = meshcat.Visualizer(zmq_url='tcp://127.0.0.1:6000')
+pio.renderers.default = "browser"  # see plotly charts in pycharm.
 #%%
 h = 0.1
 
@@ -71,23 +76,56 @@ q0_dict = create_dict_keyed_by_model_instance_index(
 #%% generate samples
 n_samples = 10000
 radius = 0.1
-qu_samples = np.zeros((n_samples, n_u))
-qa_l_samples = np.zeros((n_samples, 2))
-qa_r_samples = np.zeros((n_samples, 2))
+qu_samples = {"1_step": np.zeros((n_samples, n_u)),
+              "multi_step": np.zeros((n_samples, n_u))}
+
+qa_l_samples = {"1_step": np.zeros((n_samples, 2)),
+                "multi_step": np.zeros((n_samples, 2))}
+
+qa_r_samples = {"1_step": np.zeros((n_samples, 2)),
+                "multi_step": np.zeros((n_samples, 2))}
+
 du = np.random.rand(n_samples, n_a) * radius - radius / 2
 
 x0 = q_dynamics.get_x_from_q_dict(q0_dict)
 u0 = q_dynamics.get_u_from_q_cmd_dict(q0_dict)
 
+
+def save_x(x: np.ndarray, sim_type: str):
+    q_dict = q_dynamics.get_q_dict_from_x(x)
+    qu_samples[sim_type][i] = q_dict[model_u]
+    qa_l_samples[sim_type][i] = q_dict[model_a_l]
+    qa_r_samples[sim_type][i] = q_dict[model_a_r]
+
+
 for i in tqdm(range(n_samples)):
     u = u0 + du[i]
-    # x = q_dynamics.dynamics(x0, u, requires_grad=False)
-    x = q_dynamics.dynamics_more_steps(x0, u, n_steps=10)
-    q_dict = q_dynamics.get_q_dict_from_x(x)
+    x_1 = q_dynamics.dynamics(x0, u, requires_grad=False)
+    x_multi = q_dynamics.dynamics_more_steps(x0, u, n_steps=10)
+    save_x(x_1, "1_step")
+    save_x(x_multi, "multi_step")
 
-    qu_samples[i] = q_dict[model_u]
-    qa_l_samples[i] = q_dict[model_a_l]
-    qa_r_samples[i] = q_dict[model_a_r]
+
+#%% visualize plotly
+layout = go.Layout(scene=dict(aspectmode='data'))
+data_1_step = go.Scatter3d(x=qu_samples['1_step'][:, 0],
+                           y=qu_samples['1_step'][:, 1],
+                           z=qu_samples['1_step'][:, 2],
+                           mode='markers',
+                           marker=dict(color=0x00ff00,
+                                       size=1.5,
+                                       sizemode='diameter'))
+data_multi = go.Scatter3d(x=qu_samples['multi_step'][:, 0],
+                          y=qu_samples['multi_step'][:, 1],
+                          z=qu_samples['multi_step'][:, 2],
+                          mode='markers',
+                          marker=dict(color=0x00ff00,
+                                      size=1.5,
+                                      sizemode='diameter'))
+
+fig = go.Figure(data=[data_1_step, data_multi],
+                layout=layout)
+fig.show()
 
 
 #%% visualize
@@ -102,7 +140,7 @@ plt.show()
 
 viz['qu_samples_2'].set_object(
     meshcat.geometry.PointCloud(
-        position=(qu_samples - qu_samples.mean(axis=0)).T * 10,
-        color=np.ones_like(qu_samples).T))
+        position=(qu_samples_1step - qu_samples_1step.mean(axis=0)).T * 10,
+        color=np.ones_like(qu_samples_1step).T))
 
 
