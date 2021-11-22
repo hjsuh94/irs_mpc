@@ -181,7 +181,7 @@ class QuasistaticDynamics(DynamicalSystem):
 
         u0 = self.get_u_from_q_cmd_dict(q_dict)
         u_traj = PiecewisePolynomial.FirstOrderHold(
-            [0, self.h], np.vstack([u0, u]).T)
+            [0, self.h / 2, self.h], np.vstack([u0, u, u]).T)
         h_small = self.h / n_steps
 
         for i in range(1, n_steps + 1):

@@ -1,3 +1,5 @@
+import pickle
+
 import numpy as np
 from tqdm import tqdm
 import meshcat
@@ -18,7 +20,8 @@ from irs_lqr.quasistatic_dynamics import QuasistaticDynamics
 from planar_hand_setup import (object_sdf_path, model_directive_path, Kp,
                                robot_stiffness_dict, object_sdf_dict,
                                gravity, contact_detection_tolerance,
-                               gradient_lstsq_tolerance)
+                               gradient_lstsq_tolerance,
+                               robot_l_name, robot_r_name, object_name)
 
 viz = meshcat.Visualizer(zmq_url='tcp://127.0.0.1:6000')
 pio.renderers.default = "browser"  # see plotly charts in pycharm.
@@ -32,14 +35,11 @@ sim_params = QuasistaticSimParameters(
     is_quasi_dynamic=True)
 
 # robot
-robot_l_name = "arm_left"
-robot_r_name = "arm_right"
 nq_a = 4
 q_al0 = np.array([-0.77459643, -0.78539816])
 q_ar0 = np.array([0.77459643, 0.78539816])
 
 # box
-object_name = "sphere"
 q_u0 = np.array([0.0, 0.317, 0.0])
 
 q0_dict_str = {object_name: q_u0,
@@ -75,7 +75,7 @@ q0_dict = create_dict_keyed_by_model_instance_index(
 
 #%% generate samples
 n_samples = 10000
-radius = 0.1
+radius = 0.2
 qu_samples = {"1_step": np.zeros((n_samples, n_u)),
               "multi_step": np.zeros((n_samples, n_u))}
 
@@ -85,7 +85,7 @@ qa_l_samples = {"1_step": np.zeros((n_samples, 2)),
 qa_r_samples = {"1_step": np.zeros((n_samples, 2)),
                 "multi_step": np.zeros((n_samples, 2))}
 
-du = np.random.rand(n_samples, n_a) * radius - radius / 2
+du = np.random.rand(n_samples, n_a) * radius * 2 - radius
 
 x0 = q_dynamics.get_x_from_q_dict(q0_dict)
 u0 = q_dynamics.get_u_from_q_cmd_dict(q0_dict)
@@ -106,9 +106,8 @@ for i in tqdm(range(n_samples)):
     save_x(x_multi, "multi_step")
 
 
-#%% visualize plotly
-layout = go.Layout(scene=dict(aspectmode='data'),
-                   )
+#%%
+layout = go.Layout(scene=dict(aspectmode='data'), height=1000)
 data_1_step = go.Scatter3d(x=qu_samples['1_step'][:, 0],
                            y=qu_samples['1_step'][:, 1],
                            z=qu_samples['1_step'][:, 2],
@@ -143,9 +142,16 @@ for ax in axes:
     ax.grid(True)
 plt.show()
 
-viz['qu_samples_2'].set_object(
-    meshcat.geometry.PointCloud(
-        position=(qu_samples_1step - qu_samples_1step.mean(axis=0)).T * 10,
-        color=np.ones_like(qu_samples_1step).T))
+#%% save data to disk.
+data_file_suffix = '_r0.1'
+with open(f"du_{data_file_suffix}.pkl", 'wb') as f:
+    pickle.dump(du, f)
 
+with open(f"qa_l_{data_file_suffix}.pkl", 'wb') as f:
+    pickle.dump(qa_l_samples, f)
 
+with open(f"qa_r_{data_file_suffix}.pkl", 'wb') as f:
+    pickle.dump(qa_r_samples, f)
+
+with open(f"qu_{data_file_suffix}.pkl", 'wb') as f:
+    pickle.dump(qu_samples, f)
