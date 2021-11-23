@@ -60,15 +60,12 @@ class IrsLqrQuasistatic:
         self.params = params
 
         self.T = params.T
-        self.x0 = params.x0
         self.Q_dict = params.Q_dict
         self.Q = self.q_dynamics.get_Q_from_Q_dict(self.Q_dict)
         self.Qd_dict = params.Qd_dict
         self.Qd = self.q_dynamics.get_Q_from_Q_dict(self.Qd_dict)
         self.R_dict = params.R_dict
         self.R = self.q_dynamics.get_R_from_R_dict(self.R_dict)
-        self.x_trj_d = params.x_trj_d
-        self.u_trj_0 = params.u_trj_0
         self.x_bounds_abs = params.x_bounds_abs
         self.u_bounds_abs = params.u_bounds_abs
         self.x_bounds_rel = params.x_bounds_rel
@@ -81,35 +78,10 @@ class IrsLqrQuasistatic:
         self.task_stride = params.task_stride
         self.publish_every_iteration = params.publish_every_iteration
 
-        self.x_trj = self.rollout(self.x0, self.u_trj_0)
-        self.u_trj = self.u_trj_0  # T x m
-
-        (cost_Qu, cost_Qu_final, cost_Qa, cost_Qa_final,
-         cost_R) = self.eval_cost(self.x_trj, self.u_trj)
-        self.cost = cost_Qu + cost_Qu_final + cost_Qa + cost_Qa_final + cost_R
-
-        self.x_trj_best = None
-        self.u_trj_best = None
-        self.cost_best = np.inf
-
         # sampling standard deviation.
         self.std_u_initial = params.std_u_initial
         self.sampling = params.sampling
         self.num_samples = params.num_samples
-
-        # logging
-        self.x_trj_list = [self.x_trj]
-        self.u_trj_list = [self.u_trj]
-
-        self.cost_all_list = [self.cost]
-        self.cost_Qu_list = [cost_Qu]
-        self.cost_Qu_final_list = [cost_Qu_final]
-        self.cost_Qa_list = [cost_Qa]
-        self.cost_Qa_final_list = [cost_Qa_final]
-        self.cost_R_list = [cost_R]
-
-        self.current_iter = 1
-        self.start_time = time.time()
 
         # solver
         self.solver = get_solver(params.solver_name)
@@ -128,6 +100,38 @@ class IrsLqrQuasistatic:
         print("Press Enter when the workers are ready: ")
         input()
         print("Sending tasks to workers...")
+
+    def initialize_problem(self, x0, x_trj_d, u_trj_0):
+        # initial trajectory.
+        self.x0 = x0
+        self.x_trj_d = x_trj_d
+        self.u_trj_0 = u_trj_0
+        self.x_trj = self.rollout(self.x0, self.u_trj_0)
+        self.u_trj = self.u_trj_0  # T x m
+
+        # initial cost.
+        (cost_Qu, cost_Qu_final, cost_Qa, cost_Qa_final,
+         cost_R) = self.eval_cost(self.x_trj, self.u_trj)
+        self.cost = cost_Qu + cost_Qu_final + cost_Qa + cost_Qa_final + cost_R
+
+        self.x_trj_best = None
+        self.u_trj_best = None
+        self.cost_best = np.inf
+
+        # logging
+        self.x_trj_list = [self.x_trj]
+        self.u_trj_list = [self.u_trj]
+
+        self.cost_all_list = [self.cost]
+        self.cost_Qu_list = [cost_Qu]
+        self.cost_Qu_final_list = [cost_Qu_final]
+        self.cost_Qa_list = [cost_Qa]
+        self.cost_Qa_final_list = [cost_Qa_final]
+        self.cost_R_list = [cost_R]
+
+        self.current_iter = 1
+        self.start_time = time.time()
+
 
     def rollout(self, x0: np.ndarray, u_trj: np.ndarray):
         T = u_trj.shape[0]

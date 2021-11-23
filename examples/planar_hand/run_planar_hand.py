@@ -91,7 +91,7 @@ for i in range(T):
                   idx_a_r: q_robot_r_traj.value(t + h).ravel()}
     u = q_dynamics.get_u_from_q_cmd_dict(q_cmd_dict)
     x_next = q_dynamics.dynamics_py(x, u, mode='qp_mp', requires_grad=True,
-                               grad_from_active_constraints=True)
+                                    grad_from_active_constraints=True)
     Dq_nextDq = q_dynamics.q_sim_py.get_Dq_nextDq()
     Dq_nextDqa_cmd = q_dynamics.q_sim_py.get_Dq_nextDqa_cmd()
 
@@ -124,15 +124,6 @@ params.R_dict = {
     idx_a_l: 5 * np.array([1, 1]),
     idx_a_r: 5 * np.array([1, 1])}
 
-xd_dict = {idx_u: q_u0 + np.array([0.3, -0.1, 0.5]),
-           idx_a_l: qa_l_knots[0],
-           idx_a_r: qa_r_knots[0]}
-xd = q_dynamics.get_x_from_q_dict(xd_dict)
-x_trj_d = np.tile(xd, (T + 1, 1))
-
-params.x0 = x0
-params.x_trj_d = x_trj_d
-params.u_trj_0 = u_traj_0
 params.T = T
 
 params.u_bounds_abs = np.array([
@@ -153,7 +144,13 @@ params.task_stride = task_stride
 params.num_samples = num_samples
 
 
+xd_dict = {idx_u: q_u0 + np.array([0.3, -0.1, 0.5]),
+           idx_a_l: qa_l_knots[0],
+           idx_a_r: qa_r_knots[0]}
+xd = q_dynamics.get_x_from_q_dict(xd_dict)
+x_trj_d = np.tile(xd, (T + 1, 1))
 irs_lqr_q = IrsLqrQuasistatic(q_dynamics=q_dynamics, params=params)
+irs_lqr_q.initialize_problem(x0=x0, x_trj_d=x_trj_d, u_trj_0=u_traj_0)
 
 #%% compare zero-order and first-order gradient estimation.
 std_dict = {idx_u: np.ones(3) * 1e-3,
@@ -219,5 +216,3 @@ plt.xlabel('Iterations')
 plt.legend()
 plt.grid(True)
 plt.show()
-
-
