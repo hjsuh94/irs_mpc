@@ -21,7 +21,7 @@ from planar_hand_setup import *
 from rrt.planner import RRT, ConfigurationSpace, TreeNode
 
 #%% sim setup
-T = int(round(3 / h))  # num of time steps to simulate forward.
+T = int(round(2 / h))  # num of time steps to simulate forward.
 duration = T * h
 sim_params = QuasistaticSimParameters(
     gravity=gravity,
@@ -59,7 +59,7 @@ dim_u = q_dynamics.dim_u
 #%%
 params = IrsLqrQuasistaticParameters()
 params.Q_dict = {
-    model_u: np.array([1, 1, 1]),
+    model_u: np.array([10, 10, 10]),
     model_a_l: np.array([1e-3, 1e-3]),
     model_a_r: np.array([1e-3, 1e-3])}
 params.Qd_dict = {model: Q_i * 100 for model, Q_i in params.Q_dict.items()}
@@ -94,9 +94,8 @@ params.task_stride = task_stride
 params.num_samples = num_samples
 params.T = T
 params.u_bounds_abs = np.array([
-    -np.ones(dim_u) * 0.5 * h, np.ones(dim_u) * 0.5 * h])
+    -np.ones(dim_u) * 2 * h, np.ones(dim_u) * 2 * h])
 params.publish_every_iteration = False
-
 
 
 #%%
@@ -121,9 +120,10 @@ joint_limits = {
 cspace = ConfigurationSpace(joint_limits, q_sim_py)
 rrt = RRT(root=TreeNode(q0_dict, parent=None), cspace=cspace)
 
+q_current = q0_dict
 
 while True:
-    q_goal = cspace.sample()
+    q_goal = cspace.sample_near(q_current, model_u, 0.2)
     node_nearest = rrt.nearest(q_goal)
     q_start = node_nearest.q
 
@@ -135,19 +135,19 @@ while True:
         x_trj_d=np.tile(xd, (T + 1, 1)),
         u_trj_0=np.tile(u0, (T, 1)))
 
-    # update_q_start_and_goal(q_start=q_start, q_goal=q_goal)
-
     irs_lqr_q.iterate(num_iters)
 
     q_reached = q_dynamics.get_q_dict_from_x(irs_lqr_q.x_trj_best[-1])
-
     rrt.add_node(parent_node=node_nearest,
                  q_child=q_reached)
+    q_current = q_reached
 
     # plot different components of the cost for all iterations.
-    print('q_start\n', q_start)
-    print('q_goal\n', q_goal)
-    print('q_reached\n', q_reached)
+    dq = q_goal[model_u] - q_start[model_u]
+    q_error = q_goal[model_u] - q_reached[model_u]
+    print('trans error / cmd',
+          np.linalg.norm(q_error[:2]) / np.linalg.norm(dq[:2]))
+    print('rot error / cmd', np.abs(q_error[2]) / np.abs(dq[2]))
     q_dynamics.publish_trajectory(irs_lqr_q.x_trj_best)
 
     plt.figure()
@@ -164,7 +164,7 @@ while True:
     plt.grid(True)
     plt.show()
 
-    if rrt.size > 100:
+    if rrt.size > 20:
         break
 
 

@@ -16,6 +16,28 @@ class ConfigurationSpace:
         self.joint_limits = joint_limits
         self.q_sim = q_sim
 
+    def sample_near(self, q: Dict[ModelInstanceIndex, np.ndarray],
+                    model_u: ModelInstanceIndex, r: float):
+        qu = q[model_u]
+        lb_u = np.maximum(self.joint_limits[model_u][:, 0], qu - r)
+        ub_u = np.minimum(self.joint_limits[model_u][:, 1], qu + r)
+
+        q_dict = {}
+        while True:
+            for model, bounds in self.joint_limits.items():
+                n = len(bounds)
+                if model == model_u:
+                    lb = lb_u
+                    ub = ub_u
+                else:
+                    lb = bounds[:, 0]
+                    ub = bounds[:, 1]
+                q_dict[model] = np.random.rand(n) * (ub - lb) + lb
+
+            if not self.has_collision(q_dict):
+                break
+        return q_dict
+
     def sample(self):
         """
         returns a collision-free configuration for self.qsim.plant.
