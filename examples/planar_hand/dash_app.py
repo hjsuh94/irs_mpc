@@ -11,7 +11,7 @@ from planar_hand_setup import (model_directive_path,
                                robot_stiffness_dict, object_sdf_dict,
                                robot_l_name, robot_r_name, object_name)
 
-from rrt.meshcat_utils import set_orthographic_camera_yz
+from rrt.utils import set_orthographic_camera_yz
 
 # %% meshcat
 q_sim_py = QuasistaticSimulator(

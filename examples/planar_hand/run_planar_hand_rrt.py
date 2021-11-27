@@ -4,7 +4,7 @@ from planar_hand_setup import *
 
 from rrt.planner import ConfigurationSpace
 
-from rrt.meshcat_utils import set_orthographic_camera_yz
+from rrt.utils import set_orthographic_camera_yz
 
 #%% sim setup
 T = int(round(2 / h))  # num of time steps to simulate forward.
