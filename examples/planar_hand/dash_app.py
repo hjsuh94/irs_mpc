@@ -2,29 +2,18 @@ import json
 import pickle
 import dash
 from dash import dcc, html
-import plotly.express as px
-import pandas as pd
-import meshcat
 
 from dash.dependencies import Input, Output
 import plotly.graph_objects as go
 
 from qsim.simulator import (QuasistaticSimulator, QuasistaticSimParameters)
-from planar_hand_setup import (object_sdf_path, model_directive_path,
+from planar_hand_setup import (model_directive_path,
                                robot_stiffness_dict, object_sdf_dict,
                                robot_l_name, robot_r_name, object_name)
 
-#%% meshcat
-def SetOrthographicCameraYZ(vis: meshcat.Visualizer) -> None:
-    # use orthographic camera, show YZ plane.
-    camera = meshcat.geometry.OrthographicCamera(
-        left=-0.5, right=0.5, bottom=-1, top=1, near=-1000, far=1000)
-    vis['/Cameras/default/rotated'].set_object(camera)
-    vis['/Cameras/default/rotated/<object>'].set_property(
-        "position", [0, 0, 0])
-    vis['/Cameras/default'].set_transform(
-        meshcat.transformations.translation_matrix([1, 0, 0]))
+from rrt.meshcat_utils import set_orthographic_camera_yz
 
+# %% meshcat
 q_sim_py = QuasistaticSimulator(
     model_directive_path=model_directive_path,
     robot_stiffness_dict=robot_stiffness_dict,
@@ -32,15 +21,14 @@ q_sim_py = QuasistaticSimulator(
     sim_params=QuasistaticSimParameters(),
     internal_vis=True)
 
-SetOrthographicCameraYZ(q_sim_py.viz.vis)
+set_orthographic_camera_yz(q_sim_py.viz.vis)
 
 model_a_l = q_sim_py.plant.GetModelInstanceByName(robot_l_name)
 model_a_r = q_sim_py.plant.GetModelInstanceByName(robot_r_name)
 model_u = q_sim_py.plant.GetModelInstanceByName(object_name)
 
-
-#%% load data from disk.
-data_file_suffix = '_r0.1'
+# %% load data from disk.
+data_file_suffix = '_r0.2'
 with open(f"du_{data_file_suffix}.pkl", 'rb') as f:
     du = pickle.load(f)
 
@@ -53,7 +41,7 @@ with open(f"qa_r_{data_file_suffix}.pkl", 'rb') as f:
 with open(f"qu_{data_file_suffix}.pkl", 'rb') as f:
     qu = pickle.load(f)
 
-#%%
+# %%
 layout = go.Layout(scene=dict(aspectmode='data'), height=1000)
 data_1_step = go.Scatter3d(x=qu['1_step'][:, 0],
                            y=qu['1_step'][:, 1],
@@ -77,12 +65,8 @@ fig.update_scenes(camera_projection_type='orthographic',
                   yaxis_title_text='z',
                   zaxis_title_text='theta')
 
-
-#%%
-
-external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
-
-app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
+# %%
+app = dash.Dash(__name__)
 
 styles = {
     'pre': {
@@ -153,9 +137,9 @@ def display_hover_data(hoverData):
         return json.dumps(hoverData, indent=2)
     point = hoverData['points'][0]
     if point['curveNumber'] == 1:
-        name = "1_step"
-    elif point['curveNumber'] == 0:
         name = "multi_step"
+    elif point['curveNumber'] == 0:
+        name = "1_step"
 
     idx = point["pointNumber"]
     q_dict = {

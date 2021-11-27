@@ -22,9 +22,11 @@ from planar_hand_setup import (object_sdf_path, model_directive_path, Kp,
                                gravity, contact_detection_tolerance,
                                gradient_lstsq_tolerance,
                                robot_l_name, robot_r_name, object_name)
+from rrt.planner import ConfigurationSpace
 
 viz = meshcat.Visualizer(zmq_url='tcp://127.0.0.1:6000')
 pio.renderers.default = "browser"  # see plotly charts in pycharm.
+
 #%%
 h = 0.1
 
@@ -36,15 +38,6 @@ sim_params = QuasistaticSimParameters(
 
 # robot
 nq_a = 4
-q_al0 = np.array([-0.77459643, -0.78539816])
-q_ar0 = np.array([0.77459643, 0.78539816])
-
-# box
-q_u0 = np.array([0.0, 0.317, 0.0])
-
-q0_dict_str = {object_name: q_u0,
-               robot_l_name: q_al0,
-               robot_r_name: q_ar0}
 
 # Python sim.
 q_sim_py = QuasistaticSimulator(
@@ -66,15 +59,23 @@ q_sim_cpp = QuasistaticSimulatorCpp(
 q_dynamics = QuasistaticDynamics(h=h, q_sim_py=q_sim_py, q_sim=q_sim_cpp)
 n_a = q_dynamics.dim_u
 n_u = q_dynamics.dim_x - n_a
+
 model_a_l = q_sim_py.plant.GetModelInstanceByName(robot_l_name)
 model_a_r = q_sim_py.plant.GetModelInstanceByName(robot_r_name)
 model_u = q_sim_py.plant.GetModelInstanceByName(object_name)
-q0_dict = create_dict_keyed_by_model_instance_index(
-    q_sim_py.plant, q_dict_str=q0_dict_str)
 
+# cspace object for sampling configurations.
+cspace = ConfigurationSpace(model_u=model_u, model_a_l=model_a_l, model_a_r=model_a_r,
+                            q_sim=q_sim_py)
+
+#%% Get initial config from sampling.
+q_u0 = np.array([0.0, 0.35, 0.0])
+q_dict = cspace.sample_contact(q_u=q_u0)
+q_sim_py.update_mbp_positions(q_dict)
+q_sim_py.draw_current_configuration()
 
 #%% generate samples
-n_samples = 10000
+n_samples = 5000
 radius = 0.2
 qu_samples = {"1_step": np.zeros((n_samples, n_u)),
               "multi_step": np.zeros((n_samples, n_u))}
@@ -87,8 +88,8 @@ qa_r_samples = {"1_step": np.zeros((n_samples, 2)),
 
 du = np.random.rand(n_samples, n_a) * radius * 2 - radius
 
-x0 = q_dynamics.get_x_from_q_dict(q0_dict)
-u0 = q_dynamics.get_u_from_q_cmd_dict(q0_dict)
+x0 = q_dynamics.get_x_from_q_dict(q_dict)
+u0 = q_dynamics.get_u_from_q_cmd_dict(q_dict)
 
 
 def save_x(x: np.ndarray, sim_type: str):
@@ -143,7 +144,7 @@ for ax in axes:
 plt.show()
 
 #%% save data to disk.
-data_file_suffix = '_r0.1'
+data_file_suffix = '_r0.2'
 with open(f"du_{data_file_suffix}.pkl", 'wb') as f:
     pickle.dump(du, f)
 
