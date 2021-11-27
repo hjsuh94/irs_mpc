@@ -1,9 +1,6 @@
-from typing import Dict
-import time
-import matplotlib.pyplot as plt
-import numpy as np
-
-from pydrake.all import PiecewisePolynomial, ModelInstanceIndex
+from tqdm import tqdm
+import pandas as pd
+import plotly.express as px
 
 from qsim.simulator import QuasistaticSimulator, QuasistaticSimParameters
 from qsim.system import cpp_params_from_py_params
@@ -14,10 +11,13 @@ from irs_lqr.irs_lqr_quasistatic import IrsLqrQuasistatic
 
 from planar_hand_setup import *
 
+from rrt.planner import ConfigurationSpace
+from rrt.utils import sample_on_sphere
 
-from rrt.planner import RRT, ConfigurationSpace, TreeNode
+import plotly.io as pio
+pio.renderers.default = "browser"  # see plotly charts in pycharm.
 
-#%% sim setup
+#%% Quasistatic Simulator
 sim_params = QuasistaticSimParameters(
     gravity=gravity,
     nd_per_contact=2,
@@ -46,12 +46,14 @@ model_a_l = plant.GetModelInstanceByName(robot_l_name)
 model_a_r = plant.GetModelInstanceByName(robot_r_name)
 model_u = plant.GetModelInstanceByName(object_name)
 
-#%%
+#%% Quasistatic Dynamics
 q_dynamics = QuasistaticDynamics(h=h, q_sim_py=q_sim_py, q_sim=q_sim_cpp)
 dim_x = q_dynamics.dim_x
 dim_u = q_dynamics.dim_u
+cspace = ConfigurationSpace(model_u=model_u, model_a_l=model_a_l, model_a_r=model_a_r,
+                            q_sim=q_sim_py)
 
-#%%
+#%% Irs-Lqr
 params = IrsLqrQuasistaticParameters()
 params.Q_dict = {
     model_u: np.array([10, 10, 10]),
@@ -70,8 +72,7 @@ params.use_workers = use_workers
 params.gradient_mode = gradient_mode
 params.task_stride = task_stride
 params.num_samples = num_samples
-params.u_bounds_abs = np.array([
-    -np.ones(dim_u) * 2 * h, np.ones(dim_u) * 2 * h])
+params.u_bounds_abs = np.array([-np.ones(dim_u) * 2 * h, np.ones(dim_u) * 2 * h])
 params.publish_every_iteration = False
 
 T = int(round(2 / h))  # num of time steps to simulate forward.
@@ -81,63 +82,41 @@ duration = T * h
 irs_lqr_q = IrsLqrQuasistatic(q_dynamics=q_dynamics, params=params)
 
 #%%
-# initial conditions (root).
-qa_l_0 = [-np.pi / 4, -np.pi / 4]
-qa_r_0 = [np.pi / 4, np.pi / 4]
-q_u0 = np.array([0.0, 0.35, 0])
-q0_dict = {model_u: q_u0,
-           model_a_l: qa_l_0,
-           model_a_r: qa_r_0}
+# q_u0 = np.array([0, 0.35, 0])
+q_u0 = np.array([-0.2, 0.3, 0])
+q0_dict = cspace.sample_contact(q_u=q_u0)
+x0 = q_dynamics.get_x_from_q_dict(q0_dict)
+u0 = q_dynamics.get_u_from_q_cmd_dict(q0_dict)
 
-cspace = ConfigurationSpace(model_u=model_u, model_a_l=model_a_l, model_a_r=model_a_r,
-                            q_sim=q_sim_py)
-rrt = RRT(root=TreeNode(q0_dict, parent=None), cspace=cspace)
+delta_q_u_samples = sample_on_sphere(radius=0.5, n_samples=500)
 
-q_current = q0_dict
-
-while True:
-    q_goal = cspace.sample_near(q_current, model_u, 0.2)
-    node_nearest = rrt.nearest(q_goal)
-    q_start = node_nearest.q
-
-    xd = q_dynamics.get_x_from_q_dict(q_goal)
-    u0 = q_dynamics.get_u_from_q_cmd_dict(q_start)
-
+results = []
+for delta_q_u in tqdm(delta_q_u_samples):
+    x_goal = np.array(x0)
+    x_goal[q_sim_py.velocity_indices[model_u]] += delta_q_u
     irs_lqr_q.initialize_problem(
-        x0=q_dynamics.get_x_from_q_dict(q_start),
-        x_trj_d=np.tile(xd, (T + 1, 1)),
+        x0=x0,
+        x_trj_d=np.tile(x_goal, (T + 1, 1)),
         u_trj_0=np.tile(u0, (T, 1)))
 
-    irs_lqr_q.iterate(num_iters)
+    irs_lqr_q.iterate(max_iterations=10)
+    result = irs_lqr_q.package_solution()
+    result["d_qu_goal"] = delta_q_u
+    results.append(result)
 
-    q_reached = q_dynamics.get_q_dict_from_x(irs_lqr_q.x_trj_best[-1])
-    rrt.add_node(parent_node=node_nearest,
-                 q_child=q_reached)
-    q_current = q_reached
 
-    # plot different components of the cost for all iterations.
-    dq = q_goal[model_u] - q_start[model_u]
-    q_error = q_goal[model_u] - q_reached[model_u]
-    print('trans error / cmd',
-          np.linalg.norm(q_error[:2]) / np.linalg.norm(dq[:2]))
-    print('rot error / cmd', np.abs(q_error[2]) / np.abs(dq[2]))
-    q_dynamics.publish_trajectory(irs_lqr_q.x_trj_best)
+#%%
+df = pd.DataFrame({
+    'd_qu_y': delta_q_u_samples[:, 0],
+    'd_qu_z': delta_q_u_samples[:, 1],
+    'd_qu_theta': delta_q_u_samples[:, 2],
+    'cost': [result['cost']['Qu_f'] for result in results]})
 
-    plt.figure()
-    plt.plot(irs_lqr_q.cost_all_list, label='all')
-    plt.plot(irs_lqr_q.cost_Qa_list, label='Qa')
-    plt.plot(irs_lqr_q.cost_Qu_list, label='Qu')
-    plt.plot(irs_lqr_q.cost_Qa_final_list, label='Qa_f')
-    plt.plot(irs_lqr_q.cost_Qu_final_list, label='Qu_f')
-    plt.plot(irs_lqr_q.cost_R_list, label='R')
+fig = px.scatter_3d(df, x='d_qu_y', y='d_qu_z', z='d_qu_theta', color='cost')
+fig.update_scenes(camera_projection_type='orthographic',
+                  aspectmode='data')
+fig.show()
 
-    plt.title('Trajectory cost')
-    plt.xlabel('Iterations')
-    plt.legend()
-    plt.grid(True)
-    plt.show()
 
-    if rrt.size > 20:
-        break
 
 

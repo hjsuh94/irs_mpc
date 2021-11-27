@@ -17,7 +17,7 @@ from irs_lqr.irs_lqr_quasistatic import (
 from planar_hand_setup import *
 
 #%% sim setup
-T = int(round(3 / h))  # num of time steps to simulate forward.
+T = int(round(2 / h))  # num of time steps to simulate forward.
 duration = T * h
 sim_params = QuasistaticSimParameters(
     gravity=gravity,
@@ -143,14 +143,16 @@ params.gradient_mode = gradient_mode
 params.task_stride = task_stride
 params.num_samples = num_samples
 
+irs_lqr_q = IrsLqrQuasistatic(q_dynamics=q_dynamics, params=params)
 
-xd_dict = {idx_u: q_u0 + np.array([-0.3, -0.1, 0.5]),
+#%%
+xd_dict = {idx_u: q_u0 + np.array([-0.3, -0.2, 0.3]),
            idx_a_l: qa_l_knots[0],
            idx_a_r: qa_r_knots[0]}
 xd = q_dynamics.get_x_from_q_dict(xd_dict)
 x_trj_d = np.tile(xd, (T + 1, 1))
-irs_lqr_q = IrsLqrQuasistatic(q_dynamics=q_dynamics, params=params)
 irs_lqr_q.initialize_problem(x0=x0, x_trj_d=x_trj_d, u_trj_0=u_traj_0)
+
 
 #%% compare zero-order and first-order gradient estimation.
 std_dict = {idx_u: np.ones(3) * 1e-3,

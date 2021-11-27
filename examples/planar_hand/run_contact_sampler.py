@@ -28,18 +28,12 @@ model_a_l = plant.GetModelInstanceByName(robot_l_name)
 model_a_r = plant.GetModelInstanceByName(robot_r_name)
 model_u = plant.GetModelInstanceByName(object_name)
 
-cspace = ConfigurationSpace(model_u=model_u, model_a_l=model_a_l, model_a_r=model_a_r,
-                            q_sim=q_sim_py)
+cspace = ConfigurationSpace(
+    model_u=model_u, model_a_l=model_a_l, model_a_r=model_a_r, q_sim=q_sim_py)
 
 #%%
 # some configuration.
-qa_l_0 = [-np.pi / 4, -np.pi / 4]
-qa_r_0 = [np.pi / 4, np.pi / 4]
-q_u0 = np.array([-0.2, 0.5, 0])
-q0_dict = {model_u: q_u0,
-           model_a_l: qa_l_0,
-           model_a_r: qa_r_0}
-
+q_u0 = np.array([-0.2, 0.3, 0])
 q_dict = cspace.sample_contact(q_u=q_u0)
 
 q_sim_py.update_mbp_positions(q_dict)

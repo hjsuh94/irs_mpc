@@ -38,7 +38,22 @@ class IrsLqrQuasistaticParameters:
         self.gradient_mode = "zero_order_B"
         self.solver_name = "gurobi"
         self.task_stride = 1
-        self.publish_every_iteration = True
+        self.publish_every_iteration = False
+
+
+def update_q_start_and_goal(
+        q_start: Dict[ModelInstanceIndex, np.ndarray],
+        q_goal: Dict[ModelInstanceIndex, np.ndarray],
+        params: IrsLqrQuasistaticParameters,
+        q_dynamics: QuasistaticDynamics,
+        T: int):
+    params.x0 = q_dynamics.get_x_from_q_dict(q_start)
+
+    u0 = q_dynamics.get_u_from_q_cmd_dict(q_start)
+    params.u_trj_0 = np.tile(u0, (T, 1))
+
+    xd = q_dynamics.get_x_from_q_dict(q_goal)
+    params.x_trj_d = np.tile(xd, (T + 1, 1))
 
 
 class IrsLqrQuasistatic:
@@ -114,6 +129,8 @@ class IrsLqrQuasistatic:
          cost_R) = self.eval_cost(self.x_trj, self.u_trj)
         self.cost = cost_Qu + cost_Qu_final + cost_Qa + cost_Qa_final + cost_R
 
+        # best cost
+        self.idx_best = 0
         self.x_trj_best = None
         self.u_trj_best = None
         self.cost_best = np.inf
@@ -351,6 +368,9 @@ class IrsLqrQuasistatic:
         return x_trj_new, u_trj_new
 
     def iterate(self, max_iterations):
+        # index into self.x_trj_list and self.u_trj_list. It starts at 1 because
+        # self.x_trj_list is initialized with the initial guess.
+
         while True:
             print('Iter {:02d},'.format(self.current_iter),
                   'cost: {:0.4f}.'.format(self.cost),
@@ -376,6 +396,7 @@ class IrsLqrQuasistatic:
                 self.x_trj_best = x_trj_new
                 self.u_trj_best = u_trj_new
                 self.cost_best = cost
+                self.idx_best = self.current_iter
 
             if self.current_iter > max_iterations:
                 break
@@ -387,3 +408,18 @@ class IrsLqrQuasistatic:
             self.current_iter += 1
 
         return self.x_trj, self.u_trj, self.cost
+
+    def package_solution(self):
+        i_best = self.idx_best
+        cost = {
+            "Qu": self.cost_Qu_list[i_best],
+            "Qu_f": self.cost_Qu_final_list[i_best],
+            "Qa": self.cost_Qa_list[i_best],
+            "Qa_f": self.cost_Qa_final_list[i_best],
+            "R": self.cost_R_list[i_best],
+            "all": self.cost_all_list[i_best]}
+        result = {'cost': cost,
+                  "x_trj": np.array(self.x_trj_best),
+                  "u_trj": np.array(self.u_trj_best)}
+        return result
+

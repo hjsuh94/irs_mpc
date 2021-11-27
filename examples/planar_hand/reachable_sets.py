@@ -69,7 +69,7 @@ cspace = ConfigurationSpace(model_u=model_u, model_a_l=model_a_l, model_a_r=mode
                             q_sim=q_sim_py)
 
 #%% Get initial config from sampling.
-q_u0 = np.array([0.0, 0.35, 0.0])
+q_u0 = np.array([-0.2, 0.3, 0])
 q_dict = cspace.sample_contact(q_u=q_u0)
 q_sim_py.update_mbp_positions(q_dict)
 q_sim_py.draw_current_configuration()
@@ -144,7 +144,7 @@ for ax in axes:
 plt.show()
 
 #%% save data to disk.
-data_file_suffix = '_r0.2'
+data_file_suffix = '_r0.2_second_config'
 with open(f"du_{data_file_suffix}.pkl", 'wb') as f:
     pickle.dump(du, f)
 
