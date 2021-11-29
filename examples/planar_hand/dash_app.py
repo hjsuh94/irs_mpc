@@ -3,6 +3,7 @@ import json
 import pickle
 import dash
 from dash import dcc, html
+import dash_bootstrap_components as dbc
 
 from dash.dependencies import Input, Output
 import plotly.graph_objects as go
@@ -40,6 +41,7 @@ for name in file_names_prefix:
 
 du, qa_l, qa_r, qu = data
 
+
 # %%
 layout = go.Layout(scene=dict(aspectmode='data'), height=1000)
 data_1_step = go.Scatter3d(x=qu['1_step'][:, 0],
@@ -65,7 +67,7 @@ fig.update_scenes(camera_projection_type='orthographic',
                   zaxis_title_text='theta')
 
 # %%
-app = dash.Dash(__name__)
+app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 
 styles = {
     'pre': {
@@ -74,32 +76,40 @@ styles = {
     }
 }
 
-app.layout = html.Div([
-    dcc.Graph(
-        id='basic-interactions',
-        figure=fig
-    ),
-    html.Iframe(src='http://127.0.0.1:7000/static/'),
-    html.Div(className='row', children=[
-        html.Div([
+app.layout = dbc.Container([
+    dbc.Row([
+        dbc.Col(
+            dcc.Graph(
+                id='basic-interactions',
+                figure=fig),
+            width={'size': 6, 'offset': 0, 'order': 0},
+        ),
+        dbc.Col(
+            html.Iframe(src='http://127.0.0.1:7000/static/',
+                        height=1024, width=768),
+            width={'size': 6, 'offset': 0, 'order': 0},
+        )
+    ]),
+    dbc.Row([
+        dbc.Col([
             dcc.Markdown("""
                 **Hover Data**
 
                 Mouse over values in the graph.
             """),
-            html.Pre(id='hover-data', style=styles['pre'])
-        ], className='three columns'),
-
-        html.Div([
+            html.Pre(id='hover-data', style=styles['pre'])],
+            width={'size': 3, 'offset': 0, 'order': 0}
+        ),
+        dbc.Col([
             dcc.Markdown("""
                 **Click Data**
 
                 Click on points in the graph.
             """),
-            html.Pre(id='click-data', style=styles['pre']),
-        ], className='three columns'),
-
-        html.Div([
+            html.Pre(id='click-data', style=styles['pre'])],
+            width={'size': 3, 'offset': 0, 'order': 0}
+        ),
+        dbc.Col([
             dcc.Markdown("""
                 **Selection Data**
 
@@ -110,10 +120,10 @@ app.layout = html.Div([
                 accumulates (or un-accumulates) selected data if you hold down the shift
                 button while clicking.
             """),
-            html.Pre(id='selected-data', style=styles['pre']),
-        ], className='three columns'),
-
-        html.Div([
+            html.Pre(id='selected-data', style=styles['pre'])],
+            width={'size': 3, 'offset': 0, 'order': 0}
+        ),
+        dbc.Col([
             dcc.Markdown("""
                 **Zoom and Relayout Data**
 
@@ -122,8 +132,9 @@ app.layout = html.Div([
                 Clicking on legend items will also fire
                 this event.
             """),
-            html.Pre(id='relayout-data', style=styles['pre']),
-        ], className='three columns')
+            html.Pre(id='relayout-data', style=styles['pre'])],
+            width={'size': 3, 'offset': 0, 'order': 0}
+        )
     ])
 ])
 
