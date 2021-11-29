@@ -1,3 +1,4 @@
+import os
 import json
 import pickle
 import dash
@@ -28,18 +29,16 @@ model_a_r = q_sim_py.plant.GetModelInstanceByName(robot_r_name)
 model_u = q_sim_py.plant.GetModelInstanceByName(object_name)
 
 # %% load data from disk.
-data_file_suffix = '_r0.2'
-with open(f"du_{data_file_suffix}.pkl", 'rb') as f:
-    du = pickle.load(f)
+file_names_prefix = ['du_', 'qa_l_', 'qa_r_', 'qu_']
+suffix = '_r0.2'
 
-with open(f"qa_l_{data_file_suffix}.pkl", 'rb') as f:
-    qa_l = pickle.load(f)
+data = []
+for name in file_names_prefix:
+    path = os.path.join('data', f'{name}{suffix}.pkl')
+    with open(path, 'rb') as f:
+        data.append(pickle.load(f))
 
-with open(f"qa_r_{data_file_suffix}.pkl", 'rb') as f:
-    qa_r = pickle.load(f)
-
-with open(f"qu_{data_file_suffix}.pkl", 'rb') as f:
-    qu = pickle.load(f)
+du, qa_l, qa_r, qu = data
 
 # %%
 layout = go.Layout(scene=dict(aspectmode='data'), height=1000)
@@ -80,7 +79,7 @@ app.layout = html.Div([
         id='basic-interactions',
         figure=fig
     ),
-
+    html.Iframe(src='http://127.0.0.1:7000/static/'),
     html.Div(className='row', children=[
         html.Div([
             dcc.Markdown("""
