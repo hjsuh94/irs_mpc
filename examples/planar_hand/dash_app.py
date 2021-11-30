@@ -106,6 +106,17 @@ q_u0 = reachability_trj_opt['qu_0']
 trj_data = reachability_trj_opt['trj_data']
 dqu_goal = np.array([result['dqu_goal'] for result in trj_data])
 
+#%% PCA of 1-step reachable set.
+qu_1 = qu['1_step']
+qu_1_mean = qu_1.mean(axis=0)
+U, sigma, Vh = np.linalg.svd(qu_1 - qu_1_mean)
+r = 0.5
+principal_points = np.zeros((3, 2, 3))
+for i in range(3):
+    principal_points[i, 0] = qu_1_mean - Vh[i] * sigma[i] / sigma[0] * r
+    principal_points[i, 1] = qu_1_mean + Vh[i] * sigma[i] / sigma[0] * r
+
+
 # %%
 hovertemplate = (
     '<i>y</i>: %{x:.4f}<br>' +
@@ -121,16 +132,14 @@ plot_1_step = go.Scatter3d(x=qu['1_step'][:, 0],
                            name='1_step',
                            mode='markers',
                            hovertemplate=hovertemplate,
-                           marker=dict(color=0x00ff00,
-                                       size=2))
+                           marker=dict(size=2))
 plot_multi = go.Scatter3d(x=qu['multi_step'][:, 0],
                           y=qu['multi_step'][:, 1],
                           z=qu['multi_step'][:, 2],
                           name='multi_step',
                           mode='markers',
                           hovertemplate=hovertemplate,
-                          marker=dict(color=0x00ff00,
-                                      size=2))
+                          marker=dict(size=2))
 
 plot_trj = go.Scatter3d(
     x=q_u0[0] + dqu_goal[:, 0],
@@ -145,16 +154,35 @@ plot_trj = go.Scatter3d(
                 showscale=True,
                 opacity=0.8))
 
+
+# PCA lines
+colors = ['red', 'green', 'blue']
+pca_names = 'xyz'
+principal_axes_plots = []
+for i in range(3):
+    principal_axes_plots.append(
+        go.Scatter3d(
+            x=principal_points[i, :, 0],
+            y=principal_points[i, :, 1],
+            z=principal_points[i, :, 2],
+            name=f'pca_{pca_names[i]}',
+            mode='lines',
+            line=dict(color=colors[i], width=4)
+        )
+    )
+
+
 layout = go.Layout(autosize=True, height=1200,
                    legend=dict(orientation="h"),
                    margin=dict(l=0, r=0, b=0, t=0))
-fig = go.Figure(data=[plot_1_step, plot_multi, plot_trj], layout=layout)
+fig = go.Figure(data=[plot_1_step, plot_multi, plot_trj] + principal_axes_plots,
+                layout=layout)
 fig.update_layout(coloraxis_colorbar=dict(yanchor="top", x=3, ticks="outside"))
 fig.update_scenes(camera_projection_type='orthographic',
                   xaxis_title_text='y',
                   yaxis_title_text='z',
                   zaxis_title_text='theta',
-                  aspectmode='manual',
+                  aspectmode='data',
                   aspectratio=dict(x=1.0, y=1.0, z=1.0))
 
 # %%
