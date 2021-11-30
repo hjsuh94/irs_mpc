@@ -53,9 +53,17 @@ set_orthographic_camera_yz(vis)
 
 # goal
 vis["goal/cylinder"].set_object(
-    meshcat.geometry.Cylinder(height=0.01, radius=0.25),
-    meshcat.geometry.MeshLambertMaterial(color=0xff22dd, reflectivity=0.8))
+    meshcat.geometry.Cylinder(height=0.001, radius=0.25),
+    meshcat.geometry.MeshLambertMaterial(color=0xdeb948, reflectivity=0.8))
+vis['goal/box'].set_object(
+    meshcat.geometry.Box([0.02, 0.005, 0.25]),
+    meshcat.geometry.MeshLambertMaterial(color=0x00ff00, reflectivity=0.8))
+vis['goal/box'].set_transform(
+    meshcat.transformations.translation_matrix([0, 0, 0.125]))
 
+# rotate cylinder so that it faces the x-axis.
+X_WG0 = meshcat.transformations.rotation_matrix(np.pi/2, [0, 0, 1])
+vis['goal'].set_transform(X_WG0)
 
 
 # %% load data from disk and format data.
@@ -214,7 +222,12 @@ def display_hover_data(hoverData, figure):
     idx = point["pointNumber"]
 
     if name == 'reachability':
-        pass
+        p_WG = np.array([point['x'], 0, point['y']])
+        theta = point['z']
+        X_G0G = (meshcat.transformations.translation_matrix(p_WG) @
+                 meshcat.transformations.rotation_matrix(-theta, [0, 1, 0]))
+        vis['goal'].set_transform(X_WG0 @ X_G0G)
+
     else:
         q_dict = {
             model_u: qu[name][idx],
