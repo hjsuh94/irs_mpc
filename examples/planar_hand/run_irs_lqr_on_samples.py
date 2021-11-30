@@ -101,7 +101,7 @@ for delta_q_u in tqdm(delta_q_u_samples):
 
     irs_lqr_q.iterate(max_iterations=10)
     result = irs_lqr_q.package_solution()
-    result["d_qu_goal"] = delta_q_u
+    result["dqu_goal"] = delta_q_u
     results.append(result)
 
 

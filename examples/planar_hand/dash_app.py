@@ -67,22 +67,43 @@ vis['goal'].set_transform(X_WG0)
 
 
 # %% load data from disk and format data.
-file_names_prefix = ['du_', 'qa_l_', 'qa_r_', 'qu_']
-suffix = '_r0.2'
+'''
+data format
+name: reachability_trj_opt_xx.pkl
+{# key: item
+    'qu_0': (3,) array, initial pose of the sphere.
+    'reachable_set_radius': float, radius of the box from which 1 step reachable set 
+        commands are sampled.
+    'trj_data': List[Dict], where Dict is
+        {
+            'cost': {'Qu': float, 'Qu_f': float, 'Qa': float, 'Qa_f': float, 'R': float,
+                     'all': float},
+            'x_trj': (T+1, n_q) array.
+            'u_trj': (T, n_a) array.
+            'dqu_goal': (3,) array. dqu_goal + qu_0 gives the goal which this x_trj and 
+                u_trj tries to reach.
+        }
+    'reachable_set_data': # samples used to generate 1-step or multi-step reachable sets.
+    {
+        'du': (n_samples, n_a) array,
+        'qa_l': {'1_step': (n_samples, 2) array, 'multi_step': (n_samples, 2) array.},
+        'qa_r': {'1_step': (n_samples, 2) array, 'multi_step': (n_samples, 2) array.},
+        'qu': {'1_step': (n_samples, 3) array, 'multi_step': (n_samples, 3) array.}
+    }
+}
+'''
 
-reachable_set_data = []
-for name in file_names_prefix:
-    path = os.path.join('data', f'{name}{suffix}.pkl')
-    with open(path, 'rb') as f:
-        reachable_set_data.append(pickle.load(f))
+with open('./data/reachability_trj_opt_01.pkl', 'rb') as f:
+    reachability_trj_opt = pickle.load(f)
 
-du, qa_l, qa_r, qu = reachable_set_data
+du = reachability_trj_opt['reachable_set_data']['du']
+qa_l = reachability_trj_opt['reachable_set_data']['qa_l']
+qa_r = reachability_trj_opt['reachable_set_data']['qa_r']
+qu = reachability_trj_opt['reachable_set_data']['qu']
 
-path = os.path.join('data', 'traj_opt_fingers_and_sphere_on_a_circle.pkl')
-with open(path, 'rb') as f:
-    trj_data = pickle.load(f)
-
-q_u0 = np.array([0, 0.35, 0])
+# the first row in all trajectories have the same initial object pose.
+q_u0 = reachability_trj_opt['qu_0']
+trj_data = reachability_trj_opt['trj_data']
 dqu_goal = np.array([result['dqu_goal'] for result in trj_data])
 
 # %%
@@ -118,7 +139,7 @@ plot_trj = go.Scatter3d(
     name='reachability',
     mode='markers',
     hovertemplate=hovertemplate_reachability,
-    marker=dict(size=6,
+    marker=dict(size=5,
                 color=[result['cost']['Qu_f'] for result in trj_data],
                 colorscale='jet',
                 showscale=True,
@@ -152,12 +173,12 @@ app.layout = dbc.Container([
             dcc.Graph(
                 id='reachable-sets',
                 figure=fig),
-            width={'size': 7, 'offset': 0, 'order': 0},
+            width={'size': 6, 'offset': 0, 'order': 0},
         ),
         dbc.Col(
             html.Iframe(src='http://127.0.0.1:7000/static/',
-                        height=800, width=1200),
-            width={'size': 5, 'offset': 0, 'order': 0},
+                        height=800, width=1000),
+            width={'size': 6, 'offset': 0, 'order': 0},
         )
     ]),
     dbc.Row([

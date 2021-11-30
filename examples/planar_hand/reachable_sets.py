@@ -144,7 +144,7 @@ for ax in axes:
 plt.show()
 
 #%% save data to disk.
-data_file_suffix = '_r0.2_second_config'
+data_file_suffix = '_r0.2'
 with open(f"du_{data_file_suffix}.pkl", 'wb') as f:
     pickle.dump(du, f)
 
