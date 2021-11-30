@@ -1,9 +1,12 @@
 import os
 import json
 import pickle
+
+import numpy as np
 import dash
 from dash import dcc, html
 import dash_bootstrap_components as dbc
+import pandas as pd
 
 from dash.dependencies import Input, Output
 import plotly.graph_objects as go
@@ -29,7 +32,7 @@ model_a_l = q_sim_py.plant.GetModelInstanceByName(robot_l_name)
 model_a_r = q_sim_py.plant.GetModelInstanceByName(robot_r_name)
 model_u = q_sim_py.plant.GetModelInstanceByName(object_name)
 
-# %% load data from disk.
+# %% load data from disk and format data.
 file_names_prefix = ['du_', 'qa_l_', 'qa_r_', 'qu_']
 suffix = '_r0.2'
 
@@ -40,6 +43,12 @@ for name in file_names_prefix:
         data.append(pickle.load(f))
 
 du, qa_l, qa_r, qu = data
+
+
+#%% prepare panda data frame
+df = pd.DataFrame(np.vstack([qu['1_step'], qu['multi_step']]),
+                  columns=['y', 'z', 'theta'])
+df['type'] = ['1_step'] * len(qu['1_step']) + ['multi_step'] * len(qu['multi_step'])
 
 
 # %%
@@ -136,7 +145,7 @@ app.layout = dbc.Container([
             width={'size': 3, 'offset': 0, 'order': 0}
         )
     ])
-])
+], fluid=True)
 
 
 @app.callback(
