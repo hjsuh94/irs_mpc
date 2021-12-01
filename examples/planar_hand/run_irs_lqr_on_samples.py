@@ -5,7 +5,6 @@ import plotly.express as px
 from qsim.simulator import QuasistaticSimulator, QuasistaticSimParameters
 from qsim.system import cpp_params_from_py_params
 from quasistatic_simulator_py import (QuasistaticSimulatorCpp)
-
 from irs_lqr.quasistatic_dynamics import QuasistaticDynamics
 from irs_lqr.irs_lqr_quasistatic import IrsLqrQuasistatic
 

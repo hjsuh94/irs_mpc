@@ -54,6 +54,7 @@ cspace = ConfigurationSpace(
 
 #%% meshcat
 vis = q_sim_py.viz.vis
+q_sim_py.viz.reset_recording()
 set_orthographic_camera_yz(vis)
 add_goal(vis)
 
@@ -100,7 +101,7 @@ app.layout = dbc.Container([
                      children='Current q_u0:'),
             html.H3('2. sample grasp'),
             html.Button('Sample Grasp', id='sample_grasp', n_clicks=0),
-            html.Div(id='q_a0_display', children='Current q_a0'),
+            html.Div(id='q_a0_display', children=''),
             dcc.Store(id='q_u0'),
             dcc.Store(id='q_a0')
         ],
@@ -130,7 +131,7 @@ def update_qu0(y, z, theta):
     State('q_u0', 'data'))
 def update_qa0(n_clicks, qu0_data):
     if qu0_data is None:
-        return json.dumps({'qa_l': [0., 0.], 'qa_r': [0., 0.]})
+        return json.dumps({'qa_l': [0., 0.], 'qa_r': [0., 0.]}), html.Div('')
     q_u0_dict = json.loads(qu0_data)
     q_u0 = np.array([q_u0_dict['y'], q_u0_dict['z'], q_u0_dict['theta']])
     q_dict = cspace.sample_contact(q_u=q_u0)
