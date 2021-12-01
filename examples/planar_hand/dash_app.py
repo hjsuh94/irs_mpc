@@ -22,7 +22,8 @@ from planar_hand_setup import (model_directive_path, h,
 from irs_lqr.quasistatic_dynamics import QuasistaticDynamics
 from rrt.utils import set_orthographic_camera_yz
 
-
+from dash_app_common import (add_goal, X_WG0, hover_template_1step,
+                             hover_template_trj)
 
 # %% quasistatic dynamics
 sim_params = QuasistaticSimParameters()
@@ -50,21 +51,7 @@ model_u = q_sim_py.plant.GetModelInstanceByName(object_name)
 # %% meshcat
 vis = q_sim_py.viz.vis
 set_orthographic_camera_yz(vis)
-
-# goal
-vis["goal/cylinder"].set_object(
-    meshcat.geometry.Cylinder(height=0.001, radius=0.25),
-    meshcat.geometry.MeshLambertMaterial(color=0xdeb948, reflectivity=0.8))
-vis['goal/box'].set_object(
-    meshcat.geometry.Box([0.02, 0.005, 0.25]),
-    meshcat.geometry.MeshLambertMaterial(color=0x00ff00, reflectivity=0.8))
-vis['goal/box'].set_transform(
-    meshcat.transformations.translation_matrix([0, 0, 0.125]))
-
-# rotate cylinder so that it faces the x-axis.
-X_WG0 = meshcat.transformations.rotation_matrix(np.pi/2, [0, 0, 1])
-vis['goal'].set_transform(X_WG0)
-
+add_goal(vis)
 
 # %% load data from disk and format data.
 '''
@@ -118,27 +105,19 @@ for i in range(3):
 
 
 # %%
-hovertemplate = (
-    '<i>y</i>: %{x:.4f}<br>' +
-    '<i>z</i>: %{y:.4f}<br>' +
-    '<i>theta</i>: %{z:.4f}')
-
-hovertemplate_reachability = (hovertemplate +
-                              '<br><i>cost</i>: %{marker.color:.4f}')
-
 plot_1_step = go.Scatter3d(x=qu['1_step'][:, 0],
                            y=qu['1_step'][:, 1],
                            z=qu['1_step'][:, 2],
                            name='1_step',
                            mode='markers',
-                           hovertemplate=hovertemplate,
+                           hovertemplate=hover_template_1step,
                            marker=dict(size=2))
 plot_multi = go.Scatter3d(x=qu['multi_step'][:, 0],
                           y=qu['multi_step'][:, 1],
                           z=qu['multi_step'][:, 2],
                           name='multi_step',
                           mode='markers',
-                          hovertemplate=hovertemplate,
+                          hovertemplate=hover_template_1step,
                           marker=dict(size=2))
 
 plot_trj = go.Scatter3d(
@@ -147,7 +126,7 @@ plot_trj = go.Scatter3d(
     z=q_u0[2] + dqu_goal[:, 2],
     name='reachability',
     mode='markers',
-    hovertemplate=hovertemplate_reachability,
+    hovertemplate=hover_template_trj,
     marker=dict(size=5,
                 color=[result['cost']['Qu_f'] for result in trj_data],
                 colorscale='jet',
