@@ -263,8 +263,9 @@ app.layout = dbc.Container([
     Input('reachable-sets', 'hoverData'),
     State('reachable-sets', 'figure'))
 def display_hover_data(hoverData, figure):
+    hover_data_json = json.dumps(hoverData, indent=2)
     if hoverData is None:
-        return json.dumps(hoverData, indent=2)
+        return hover_data_json
     point = hoverData['points'][0]
     idx_fig = point['curveNumber']
     name = figure['data'][idx_fig]['name']
@@ -276,7 +277,8 @@ def display_hover_data(hoverData, figure):
         X_G0G = (meshcat.transformations.translation_matrix(p_WG) @
                  meshcat.transformations.rotation_matrix(-theta, [0, 1, 0]))
         vis['goal'].set_transform(X_WG0 @ X_G0G)
-
+    elif name.startswith('pca'):
+        return hover_data_json
     else:
         q_dict = {
             model_u: qu[name][idx],
@@ -286,7 +288,7 @@ def display_hover_data(hoverData, figure):
         q_sim_py.update_mbp_positions(q_dict)
         q_sim_py.draw_current_configuration()
 
-    return json.dumps(hoverData, indent=2)
+    return hover_data_json
 
 
 @app.callback(
