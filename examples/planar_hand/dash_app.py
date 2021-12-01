@@ -59,23 +59,27 @@ data format
 name: reachability_trj_opt_xx.pkl
 {# key: item
     'qu_0': (3,) array, initial pose of the sphere.
-    'reachable_set_radius': float, radius of the box from which 1 step reachable set 
-        commands are sampled.
+    'reachable_set_radius': float, radius of the box from which 1 step reachable
+        set commands are sampled.
     'trj_data': List[Dict], where Dict is
         {
-            'cost': {'Qu': float, 'Qu_f': float, 'Qa': float, 'Qa_f': float, 'R': float,
-                     'all': float},
+            'cost': {'Qu': float, 'Qu_f': float, 'Qa': float, 'Qa_f': float, 
+                     'R': float, 'all': float},
             'x_trj': (T+1, n_q) array.
             'u_trj': (T, n_a) array.
-            'dqu_goal': (3,) array. dqu_goal + qu_0 gives the goal which this x_trj and 
-                u_trj tries to reach.
+            'dqu_goal': (3,) array. dqu_goal + qu_0 gives the goal which this 
+                x_trj and u_trj tries to reach.
         }
-    'reachable_set_data': # samples used to generate 1-step or multi-step reachable sets.
+    'reachable_set_data': # samples used to generate 1-step or multi-step 
+        reachable sets.
     {
         'du': (n_samples, n_a) array,
-        'qa_l': {'1_step': (n_samples, 2) array, 'multi_step': (n_samples, 2) array.},
-        'qa_r': {'1_step': (n_samples, 2) array, 'multi_step': (n_samples, 2) array.},
-        'qu': {'1_step': (n_samples, 3) array, 'multi_step': (n_samples, 3) array.}
+        'qa_l': {'1_step': (n_samples, 2) array, 
+                 'multi_step': (n_samples, 2) array.},
+        'qa_r': {'1_step': (n_samples, 2) array, 
+                 'multi_step': (n_samples, 2) array.},
+        'qu': {'1_step': (n_samples, 3) array, 
+               'multi_step': (n_samples, 3) array.}
     }
 }
 '''
