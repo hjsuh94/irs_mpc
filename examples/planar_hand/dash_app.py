@@ -22,8 +22,9 @@ from planar_hand_setup import (model_directive_path, h,
 from irs_lqr.quasistatic_dynamics import QuasistaticDynamics
 from rrt.utils import set_orthographic_camera_yz
 
-from dash_app_common import (add_goal, X_WG0, hover_template_1step,
-                             hover_template_trj)
+from dash_app_common import (add_goal, hover_template_reachability,
+                             hover_template_trj, layout, calc_principal_points,
+                             create_pca_plots, calc_X_WG)
 
 # %% quasistatic dynamics
 sim_params = QuasistaticSimParameters()
@@ -98,15 +99,7 @@ trj_data = reachability_trj_opt['trj_data']
 dqu_goal = np.array([result['dqu_goal'] for result in trj_data])
 
 #%% PCA of 1-step reachable set.
-qu_1 = qu['1_step']
-qu_1_mean = qu_1.mean(axis=0)
-U, sigma, Vh = np.linalg.svd(qu_1 - qu_1_mean)
-r = 0.5
-principal_points = np.zeros((3, 2, 3))
-for i in range(3):
-    principal_points[i, 0] = qu_1_mean - Vh[i] * sigma[i] / sigma[0] * r
-    principal_points[i, 1] = qu_1_mean + Vh[i] * sigma[i] / sigma[0] * r
-
+principal_points = calc_principal_points(qu_samples=qu['1_step'], r=0.5)
 
 # %%
 plot_1_step = go.Scatter3d(x=qu['1_step'][:, 0],
@@ -114,21 +107,21 @@ plot_1_step = go.Scatter3d(x=qu['1_step'][:, 0],
                            z=qu['1_step'][:, 2],
                            name='1_step',
                            mode='markers',
-                           hovertemplate=hover_template_1step,
+                           hovertemplate=hover_template_reachability,
                            marker=dict(size=2))
 plot_multi = go.Scatter3d(x=qu['multi_step'][:, 0],
                           y=qu['multi_step'][:, 1],
                           z=qu['multi_step'][:, 2],
                           name='multi_step',
                           mode='markers',
-                          hovertemplate=hover_template_1step,
+                          hovertemplate=hover_template_reachability,
                           marker=dict(size=2))
 
 plot_trj = go.Scatter3d(
     x=q_u0[0] + dqu_goal[:, 0],
     y=q_u0[1] + dqu_goal[:, 1],
     z=q_u0[2] + dqu_goal[:, 2],
-    name='reachability',
+    name='goals',
     mode='markers',
     hovertemplate=hover_template_trj,
     marker=dict(size=5,
@@ -139,34 +132,10 @@ plot_trj = go.Scatter3d(
 
 
 # PCA lines
-colors = ['red', 'green', 'blue']
-pca_names = 'xyz'
-principal_axes_plots = []
-for i in range(3):
-    principal_axes_plots.append(
-        go.Scatter3d(
-            x=principal_points[i, :, 0],
-            y=principal_points[i, :, 1],
-            z=principal_points[i, :, 2],
-            name=f'pca_{pca_names[i]}',
-            mode='lines',
-            line=dict(color=colors[i], width=4)
-        )
-    )
-
-
-layout = go.Layout(autosize=True, height=1200,
-                   legend=dict(orientation="h"),
-                   margin=dict(l=0, r=0, b=0, t=0))
+principal_axes_plots = create_pca_plots(principal_points)
 fig = go.Figure(data=[plot_1_step, plot_multi, plot_trj] + principal_axes_plots,
                 layout=layout)
-fig.update_layout(coloraxis_colorbar=dict(yanchor="top", x=3, ticks="outside"))
-fig.update_scenes(camera_projection_type='orthographic',
-                  xaxis_title_text='y',
-                  yaxis_title_text='z',
-                  zaxis_title_text='theta',
-                  aspectmode='data',
-                  aspectratio=dict(x=1.0, y=1.0, z=1.0))
+
 
 # %%
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
@@ -254,12 +223,9 @@ def display_hover_data(hoverData, figure):
     name = figure['data'][idx_fig]['name']
     idx = point["pointNumber"]
 
-    if name == 'reachability':
-        p_WG = np.array([point['x'], 0, point['y']])
-        theta = point['z']
-        X_G0G = (meshcat.transformations.translation_matrix(p_WG) @
-                 meshcat.transformations.rotation_matrix(-theta, [0, 1, 0]))
-        vis['goal'].set_transform(X_WG0 @ X_G0G)
+    if name == 'goals':
+        X_WG = calc_X_WG(y=point['x'], z=point['y'], theta=point['z'])
+        vis['goal'].set_transform(X_WG)
     elif name.startswith('pca'):
         return hover_data_json
     else:
@@ -287,7 +253,7 @@ def display_click_data(click_data, figure):
     name = figure['data'][idx_fig]['name']
     idx = point["pointNumber"]
 
-    if name == 'reachability':
+    if name == 'goals':
         q_dynamics.publish_trajectory(trj_data[idx]['x_trj'])
 
     return click_data_json
@@ -308,4 +274,4 @@ def display_relayout_data(relayoutData):
 
 
 if __name__ == '__main__':
-    app.run_server(debug=True)
+    app.run_server(debug=False)

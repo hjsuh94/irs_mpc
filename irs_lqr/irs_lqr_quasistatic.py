@@ -112,9 +112,7 @@ class IrsLqrQuasistatic:
         self.receiver = context.socket(zmq.PULL)
         self.receiver.bind("tcp://*:5558")
 
-        print("Press Enter when the workers are ready: ")
-        input()
-        print("Sending tasks to workers...")
+        print("Solve traj-opt only after the workers are ready!")
 
     def initialize_problem(self, x0, x_trj_d, u_trj_0):
         # initial trajectory.

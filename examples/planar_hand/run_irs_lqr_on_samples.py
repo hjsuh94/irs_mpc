@@ -49,8 +49,8 @@ model_u = plant.GetModelInstanceByName(object_name)
 q_dynamics = QuasistaticDynamics(h=h, q_sim_py=q_sim_py, q_sim=q_sim_cpp)
 dim_x = q_dynamics.dim_x
 dim_u = q_dynamics.dim_u
-cspace = ConfigurationSpace(model_u=model_u, model_a_l=model_a_l, model_a_r=model_a_r,
-                            q_sim=q_sim_py)
+cspace = ConfigurationSpace(model_u=model_u, model_a_l=model_a_l,
+                            model_a_r=model_a_r, q_sim=q_sim_py)
 
 #%% Irs-Lqr
 params = IrsLqrQuasistaticParameters()
