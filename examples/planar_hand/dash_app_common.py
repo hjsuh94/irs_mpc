@@ -7,7 +7,7 @@ import plotly.graph_objects as go
 X_WG0 = meshcat.transformations.rotation_matrix(np.pi/2, [0, 0, 1])
 
 
-def add_goal(vis: meshcat.Visualizer):
+def add_goal_meshcat(vis: meshcat.Visualizer):
     # goal
     vis["goal/cylinder"].set_object(
         meshcat.geometry.Cylinder(height=0.001, radius=0.25),
@@ -41,7 +41,7 @@ hover_template_reachability = (
 hover_template_trj = (hover_template_reachability +
                       '<br><i>cost</i>: %{marker.color:.4f}')
 
-layout = go.Layout(autosize=True, height=1200,
+layout = go.Layout(autosize=True, height=900,
                    legend=dict(orientation="h"),
                    margin=dict(l=0, r=0, b=0, t=0),
                    scene=dict(camera_projection_type='perspective',
@@ -79,3 +79,14 @@ def create_pca_plots(principal_points: np.ndarray):
             )
         )
     return principal_axes_plots
+
+
+#%% plotly figure components
+def create_q_u0_plot(q_u0: np.ndarray):
+    return go.Scatter3d(x=[q_u0[0]],
+                        y=[q_u0[1]],
+                        z=[q_u0[2]],
+                        name='q_u0',
+                        mode='markers',
+                        hovertemplate=hover_template_reachability,
+                        marker=dict(size=12, symbol='cross', opacity=1.0))

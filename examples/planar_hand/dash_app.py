@@ -22,9 +22,9 @@ from planar_hand_setup import (model_directive_path, h,
 from irs_lqr.quasistatic_dynamics import QuasistaticDynamics
 from rrt.utils import set_orthographic_camera_yz
 
-from dash_app_common import (add_goal, hover_template_reachability,
+from dash_app_common import (add_goal_meshcat, hover_template_reachability,
                              hover_template_trj, layout, calc_principal_points,
-                             create_pca_plots, calc_X_WG)
+                             create_pca_plots, calc_X_WG, create_q_u0_plot)
 
 # %% quasistatic dynamics
 sim_params = QuasistaticSimParameters()
@@ -52,7 +52,7 @@ model_u = q_sim_py.plant.GetModelInstanceByName(object_name)
 # %% meshcat
 vis = q_sim_py.viz.vis
 set_orthographic_camera_yz(vis)
-add_goal(vis)
+add_goal_meshcat(vis)
 
 # %% load data from disk and format data.
 '''
@@ -126,14 +126,17 @@ plot_trj = go.Scatter3d(
     hovertemplate=hover_template_trj,
     marker=dict(size=5,
                 color=[result['cost']['Qu_f'] for result in trj_data],
+                cmin=0,
+                cmax=60,
                 colorscale='jet',
                 showscale=True,
                 opacity=0.8))
 
+plot_qu0 = create_q_u0_plot(q_u0)
 
 # PCA lines
 principal_axes_plots = create_pca_plots(principal_points)
-fig = go.Figure(data=[plot_1_step, plot_multi, plot_trj] + principal_axes_plots,
+fig = go.Figure(data=[plot_1_step, plot_multi, plot_trj, plot_qu0] + principal_axes_plots,
                 layout=layout)
 
 
@@ -224,8 +227,7 @@ def display_hover_data(hoverData, figure):
     idx = point["pointNumber"]
 
     if name == 'goals':
-        X_WG = calc_X_WG(y=point['x'], z=point['y'], theta=point['z'])
-        vis['goal'].set_transform(X_WG)
+        pass
     elif name.startswith('pca'):
         return hover_data_json
     else:
@@ -254,6 +256,8 @@ def display_click_data(click_data, figure):
     idx = point["pointNumber"]
 
     if name == 'goals':
+        X_WG = calc_X_WG(y=point['x'], z=point['y'], theta=point['z'])
+        vis['goal'].set_transform(X_WG)
         q_dynamics.publish_trajectory(trj_data[idx]['x_trj'])
 
     return click_data_json

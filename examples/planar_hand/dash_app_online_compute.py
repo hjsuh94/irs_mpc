@@ -8,10 +8,9 @@ import plotly.graph_objects as go
 import tqdm
 from dash import dcc, html
 from dash.dependencies import Input, Output, State
-from dash_app_common import (add_goal, hover_template_reachability,
-                             layout,
-                             calc_principal_points,
-                             create_pca_plots, calc_X_WG)
+from dash_app_common import (add_goal_meshcat, hover_template_reachability,
+                             layout, calc_principal_points,
+                             create_pca_plots, calc_X_WG, create_q_u0_plot)
 from irs_lqr.irs_lqr_quasistatic import (IrsLqrQuasistaticParameters,
                                          IrsLqrQuasistatic)
 from irs_lqr.quasistatic_dynamics import QuasistaticDynamics
@@ -91,7 +90,7 @@ irs_lqr_q = IrsLqrQuasistatic(q_dynamics=q_dynamics, params=params)
 vis = q_sim_py.viz.vis
 q_sim_py.viz.reset_recording()
 set_orthographic_camera_yz(vis)
-add_goal(vis)
+add_goal_meshcat(vis)
 
 # %% dash app
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
@@ -267,13 +266,7 @@ def update_reachability(n_clicks, q_u0_json, q_a0_json):
     # goal poses
     q_u_goal_samples = q_u0 + sample_on_sphere(radius=0.5, n_samples=1000)
 
-    plot_qu0 = go.Scatter3d(x=[q_u0[0]],
-                            y=[q_u0[1]],
-                            z=[q_u0[2]],
-                            name='q_u0',
-                            mode='markers',
-                            hovertemplate=hover_template_reachability,
-                            marker=dict(size=12, symbol='cross', opacity=0.8))
+    plot_qu0 = create_q_u0_plot(q_u0)
 
     plot_1_step = go.Scatter3d(x=qu_samples[:, 0],
                                y=qu_samples[:, 1],
