@@ -96,7 +96,7 @@ rrt = RRT(root=TreeNode(q0_dict, parent=None), cspace=cspace)
 q_current = q0_dict
 
 while True:
-    q_goal = cspace.sample_near(q_current, model_u, 0.2)
+    q_goal = cspace.sample_near(q_current, 0.2)
     node_nearest = rrt.nearest(q_goal)
     q_start = node_nearest.q
 

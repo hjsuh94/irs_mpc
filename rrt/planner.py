@@ -32,6 +32,7 @@ class ConfigurationSpace:
         '''
         # joint limits
         self.joint_limits = {
+            model_u: np.array([[-0.5, 0.5], [0.3, 0.6], [-np.pi, np.pi]]),
             model_a_l: np.array([[-np.pi / 2, np.pi / 2], [-np.pi / 2, 0]]),
             model_a_r: np.array([[-np.pi / 2, np.pi / 2], [0, np.pi / 2]])}
 
