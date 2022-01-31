@@ -1,2 +1,2 @@
-# iRS-LQR
-iterative Randomized Smoothing LQR
+# iRS-MPC
+iterative Randomized Smoothing MPC
